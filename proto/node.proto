@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package rpc;
+option go_package = "github.com/sagarsubedi/krato/internal/rpc";
+
+service NodeService {
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc Set(SetRequest) returns (SetResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message GetRequest {
+  string key = 1;
+}
+
+message GetResponse {
+  bytes value = 1;
+  bool found = 2;
+}
+
+message SetRequest {
+  string key = 1;
+  bytes value = 2;
+  int64 ttl_ms = 3;
+}
+
+message SetResponse {
+  bool success = 1;
+}
+
+message DeleteRequest {
+  string key = 1;
+}
+
+message DeleteResponse {
+  bool success = 1;
+}
+
+message PingRequest {
+  string source_node_id = 1;
+}
+
+message PingResponse {
+  string node_id = 1;
+}
