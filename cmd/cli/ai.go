@@ -33,7 +33,7 @@ var aiCmd = &cobra.Command{
 		}
 		defer client.Close()
 
-		model := client.GenerativeModel("gemini-1.5-flash")
+		model := client.GenerativeModel("gemini-2.5-flash")
 
 		readTool := &genai.Tool{
 			FunctionDeclarations: []*genai.FunctionDeclaration{{
