@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     hostname: node1
-    command: ["--id=node1", "--http=8080", "--grpc=9090", "--gossip=7070", "--seeds=node2:7070,node3:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node1", "--advertise=node1", "--http=8080", "--grpc=9090", "--gossip=7070", "--seeds=node2:7070,node3:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
     ports:
       - "8080:8080"
       - "9090:9090"
@@ -19,7 +19,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     hostname: node2
-    command: ["--id=node2", "--http=8081", "--grpc=9090", "--gossip=7070", "--seeds=node1:7070,node3:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node2", "--advertise=node2", "--http=8081", "--grpc=9090", "--gossip=7070", "--seeds=node1:7070,node3:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
     ports:
       - "8081:8081"
       - "9091:9090"
@@ -32,7 +32,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     hostname: node3
-    command: ["--id=node3", "--http=8082", "--grpc=9090", "--gossip=7070", "--seeds=node1:7070,node2:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node3", "--advertise=node3", "--http=8082", "--grpc=9090", "--gossip=7070", "--seeds=node1:7070,node2:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
     ports:
       - "8082:8082"
       - "9092:9090"
