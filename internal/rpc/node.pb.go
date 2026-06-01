@@ -69,6 +69,7 @@ type GetResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Value         []byte                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	Found         bool                   `protobuf:"varint,2,opt,name=found,proto3" json:"found,omitempty"`
+	VectorClock   map[string]int64       `protobuf:"bytes,3,rep,name=vector_clock,json=vectorClock,proto3" json:"vector_clock,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -117,11 +118,19 @@ func (x *GetResponse) GetFound() bool {
 	return false
 }
 
+func (x *GetResponse) GetVectorClock() map[string]int64 {
+	if x != nil {
+		return x.VectorClock
+	}
+	return nil
+}
+
 type SetRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	TtlMs         int64                  `protobuf:"varint,3,opt,name=ttl_ms,json=ttlMs,proto3" json:"ttl_ms,omitempty"`
+	VectorClock   map[string]int64       `protobuf:"bytes,4,rep,name=vector_clock,json=vectorClock,proto3" json:"vector_clock,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -175,6 +184,13 @@ func (x *SetRequest) GetTtlMs() int64 {
 		return x.TtlMs
 	}
 	return 0
+}
+
+func (x *SetRequest) GetVectorClock() map[string]int64 {
+	if x != nil {
+		return x.VectorClock
+	}
+	return nil
 }
 
 type SetResponse struct {
@@ -404,15 +420,23 @@ const file_proto_node_proto_rawDesc = "" +
 	"\x10proto/node.proto\x12\x03rpc\"\x1e\n" +
 	"\n" +
 	"GetRequest\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\"9\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\"\xbf\x01\n" +
 	"\vGetResponse\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\fR\x05value\x12\x14\n" +
-	"\x05found\x18\x02 \x01(\bR\x05found\"K\n" +
+	"\x05found\x18\x02 \x01(\bR\x05found\x12D\n" +
+	"\fvector_clock\x18\x03 \x03(\v2!.rpc.GetResponse.VectorClockEntryR\vvectorClock\x1a>\n" +
+	"\x10VectorClockEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"\xd0\x01\n" +
 	"\n" +
 	"SetRequest\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\fR\x05value\x12\x15\n" +
-	"\x06ttl_ms\x18\x03 \x01(\x03R\x05ttlMs\"'\n" +
+	"\x06ttl_ms\x18\x03 \x01(\x03R\x05ttlMs\x12C\n" +
+	"\fvector_clock\x18\x04 \x03(\v2 .rpc.SetRequest.VectorClockEntryR\vvectorClock\x1a>\n" +
+	"\x10VectorClockEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"'\n" +
 	"\vSetResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\"!\n" +
 	"\rDeleteRequest\x12\x10\n" +
@@ -441,7 +465,7 @@ func file_proto_node_proto_rawDescGZIP() []byte {
 	return file_proto_node_proto_rawDescData
 }
 
-var file_proto_node_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_proto_node_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_proto_node_proto_goTypes = []any{
 	(*GetRequest)(nil),     // 0: rpc.GetRequest
 	(*GetResponse)(nil),    // 1: rpc.GetResponse
@@ -451,21 +475,25 @@ var file_proto_node_proto_goTypes = []any{
 	(*DeleteResponse)(nil), // 5: rpc.DeleteResponse
 	(*PingRequest)(nil),    // 6: rpc.PingRequest
 	(*PingResponse)(nil),   // 7: rpc.PingResponse
+	nil,                    // 8: rpc.GetResponse.VectorClockEntry
+	nil,                    // 9: rpc.SetRequest.VectorClockEntry
 }
 var file_proto_node_proto_depIdxs = []int32{
-	0, // 0: rpc.NodeService.Get:input_type -> rpc.GetRequest
-	2, // 1: rpc.NodeService.Set:input_type -> rpc.SetRequest
-	4, // 2: rpc.NodeService.Delete:input_type -> rpc.DeleteRequest
-	6, // 3: rpc.NodeService.Ping:input_type -> rpc.PingRequest
-	1, // 4: rpc.NodeService.Get:output_type -> rpc.GetResponse
-	3, // 5: rpc.NodeService.Set:output_type -> rpc.SetResponse
-	5, // 6: rpc.NodeService.Delete:output_type -> rpc.DeleteResponse
-	7, // 7: rpc.NodeService.Ping:output_type -> rpc.PingResponse
-	4, // [4:8] is the sub-list for method output_type
-	0, // [0:4] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	8, // 0: rpc.GetResponse.vector_clock:type_name -> rpc.GetResponse.VectorClockEntry
+	9, // 1: rpc.SetRequest.vector_clock:type_name -> rpc.SetRequest.VectorClockEntry
+	0, // 2: rpc.NodeService.Get:input_type -> rpc.GetRequest
+	2, // 3: rpc.NodeService.Set:input_type -> rpc.SetRequest
+	4, // 4: rpc.NodeService.Delete:input_type -> rpc.DeleteRequest
+	6, // 5: rpc.NodeService.Ping:input_type -> rpc.PingRequest
+	1, // 6: rpc.NodeService.Get:output_type -> rpc.GetResponse
+	3, // 7: rpc.NodeService.Set:output_type -> rpc.SetResponse
+	5, // 8: rpc.NodeService.Delete:output_type -> rpc.DeleteResponse
+	7, // 9: rpc.NodeService.Ping:output_type -> rpc.PingResponse
+	6, // [6:10] is the sub-list for method output_type
+	2, // [2:6] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_proto_node_proto_init() }
@@ -479,7 +507,7 @@ func file_proto_node_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_node_proto_rawDesc), len(file_proto_node_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

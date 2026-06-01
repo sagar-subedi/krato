@@ -28,19 +28,20 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) Get(ctx context.Context, key string) ([]byte, bool, error) {
+func (c *Client) Get(ctx context.Context, key string) ([]byte, bool, map[string]int64, error) {
 	res, err := c.client.Get(ctx, &GetRequest{Key: key})
 	if err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
-	return res.Value, res.Found, nil
+	return res.Value, res.Found, res.VectorClock, nil
 }
 
-func (c *Client) Set(ctx context.Context, key string, value []byte, ttlMs int64) error {
+func (c *Client) Set(ctx context.Context, key string, value []byte, ttlMs int64, clock map[string]int64) error {
 	_, err := c.client.Set(ctx, &SetRequest{
-		Key:   key,
-		Value: value,
-		TtlMs: ttlMs,
+		Key:         key,
+		Value:       value,
+		TtlMs:       ttlMs,
+		VectorClock: clock,
 	})
 	return err
 }

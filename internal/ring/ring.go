@@ -97,3 +97,38 @@ func (hr *HashRing) GetNode(key string) (Node, bool) {
 	nodeID := hr.keys[hr.ring[idx]]
 	return hr.nodes[nodeID], true
 }
+
+func (hr *HashRing) GetNodes(key string, count int) []Node {
+	hr.mu.RLock()
+	defer hr.mu.RUnlock()
+
+	if len(hr.ring) == 0 {
+		return nil
+	}
+
+	h := hashKey(key)
+
+	idx := sort.Search(len(hr.ring), func(i int) bool {
+		return hr.ring[i] >= h
+	})
+
+	if idx == len(hr.ring) {
+		idx = 0
+	}
+
+	var results []Node
+	seen := make(map[string]bool)
+
+	for i := 0; i < len(hr.ring); i++ {
+		nodeID := hr.keys[hr.ring[(idx+i)%len(hr.ring)]]
+		if !seen[nodeID] {
+			seen[nodeID] = true
+			results = append(results, hr.nodes[nodeID])
+			if len(results) == count {
+				break
+			}
+		}
+	}
+
+	return results
+}

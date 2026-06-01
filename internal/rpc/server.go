@@ -27,11 +27,17 @@ func (s *NodeServer) Get(ctx context.Context, req *GetRequest) (*GetResponse, er
 	} else if err != nil {
 		return nil, err
 	}
-	return &GetResponse{Value: val, Found: true}, nil
+
+	decodedVal, clock, err := store.DecodeVersionedValue(val)
+	if err != nil {
+		return &GetResponse{Value: val, Found: true, VectorClock: store.NewVectorClock()}, nil
+	}
+
+	return &GetResponse{Value: decodedVal, Found: true, VectorClock: clock}, nil
 }
 
 func (s *NodeServer) Set(ctx context.Context, req *SetRequest) (*SetResponse, error) {
-	err := s.engine.SetWithTTL([]byte(req.Key), req.Value, time.Duration(req.TtlMs)*time.Millisecond)
+	err := s.engine.SetVersioned([]byte(req.Key), req.Value, req.VectorClock, time.Duration(req.TtlMs)*time.Millisecond)
 	if err != nil {
 		return &SetResponse{Success: false}, err
 	}

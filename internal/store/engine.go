@@ -82,6 +82,33 @@ func (e *Engine) SetWithTTL(key, value []byte, ttl time.Duration) error {
 	return e.db.SetWithTTL(key, value, expiresAt)
 }
 
+func (e *Engine) SetVersioned(key, value []byte, clock VectorClock, ttl time.Duration) error {
+	existingVal, err := e.db.Get(key)
+	if err == nil {
+		_, existingClock, err2 := DecodeVersionedValue(existingVal)
+		if err2 == nil {
+			if existingClock.Compare(clock) > 0 {
+				return nil
+			}
+			clock.Merge(existingClock)
+		}
+	}
+	
+	encoded, err := EncodeVersionedValue(value, clock)
+	if err != nil {
+		return err
+	}
+    
+	var expiresAt int64
+	if ttl > 0 {
+		expiresAt = time.Now().Add(ttl).UnixNano()
+	}
+	if err := e.wal.Append(LogEntry{Op: OpSet, Key: key, Value: encoded, ExpiresAt: expiresAt}); err != nil {
+		return err
+	}
+	return e.db.SetWithTTL(key, encoded, expiresAt)
+}
+
 func (e *Engine) Delete(key []byte) error {
 	if err := e.wal.Append(LogEntry{Op: OpDelete, Key: key}); err != nil {
 		return err
