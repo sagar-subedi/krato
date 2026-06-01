@@ -18,3 +18,5 @@ vendor/
 # Protobuf Tooling
 .protoc/
 protoc.zip
+
+.env
