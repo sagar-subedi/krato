@@ -1,0 +1,7 @@
+id: "node_custom_yaml"
+db: "/tmp/krato.db"
+wal: "/tmp/krato.wal"
+http: "8080"
+grpc: "9090"
+gossip: "7070"
+seeds: "node2:7070,node3:7070"

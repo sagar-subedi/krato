@@ -7,10 +7,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sagarsubedi/krato/internal/ring"
 	"github.com/sagarsubedi/krato/internal/rpc"
 	"github.com/sagarsubedi/krato/internal/store"
 )
+
+var (
+	opsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "krato_ops_total",
+			Help: "Total distributed operations processed by type.",
+		},
+		[]string{"op"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(opsTotal)
+}
 
 type Server struct {
 	engine   *store.Engine
@@ -71,6 +87,7 @@ func (s *Server) StartAntiEntropy() {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("/keys/", s.handleKeys)
+	s.mux.Handle("/metrics", promhttp.Handler())
 }
 
 func (s *Server) handleKeys(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +121,8 @@ func (s *Server) handleKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) readQuorum(w http.ResponseWriter, r *http.Request, key string, nodes []ring.Node, consistency string) {
+	opsTotal.WithLabelValues("read").Inc()
+	
 	var W int
 	if consistency == "async" {
 		W = 1
@@ -220,6 +239,8 @@ func (s *Server) readQuorum(w http.ResponseWriter, r *http.Request, key string, 
 }
 
 func (s *Server) writeQuorum(w http.ResponseWriter, r *http.Request, key string, nodes []ring.Node, consistency string) {
+	opsTotal.WithLabelValues("write").Inc()
+	
 	val, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -306,6 +327,8 @@ func (s *Server) writeQuorum(w http.ResponseWriter, r *http.Request, key string,
 }
 
 func (s *Server) deleteQuorum(w http.ResponseWriter, r *http.Request, key string, nodes []ring.Node, consistency string) {
+	opsTotal.WithLabelValues("delete").Inc()
+	
 	var W int
 	if consistency == "async" {
 		W = 1

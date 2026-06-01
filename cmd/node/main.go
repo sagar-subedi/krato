@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"flag"
+	flag "github.com/spf13/pflag"
 	"log/slog"
 	"net"
 	"net/http"
@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/sagarsubedi/krato/internal/api"
 	"github.com/sagarsubedi/krato/internal/gossip"
 	"github.com/sagarsubedi/krato/internal/ring"
@@ -23,17 +24,38 @@ import (
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
-	nodeID := flag.String("id", "node1", "unique node ID")
-	dbPath := flag.String("db", "krato.db", "path to bbolt database")
-	walPath := flag.String("wal", "krato.wal", "path to write-ahead log")
-	httpPort := flag.String("http", "8080", "HTTP API port")
-	grpcPort := flag.String("grpc", "9090", "gRPC port")
-	gossipPort := flag.String("gossip", "7070", "UDP Gossip port")
-	seeds := flag.String("seeds", "", "comma separated explicit gossip seed addresses")
+	flag.String("id", "node1", "unique node ID")
+	flag.String("db", "krato.db", "path to bbolt database")
+	flag.String("wal", "krato.wal", "path to write-ahead log")
+	flag.String("http", "8080", "HTTP API port")
+	flag.String("grpc", "9090", "gRPC port")
+	flag.String("gossip", "7070", "UDP Gossip port")
+	flag.String("seeds", "", "comma separated explicit gossip seed addresses")
 
 	flag.Parse()
 
-	engine, err := store.NewEngine(*dbPath, *walPath)
+	viper.SetEnvPrefix("KRATO")
+	viper.AutomaticEnv()
+	viper.BindPFlags(flag.CommandLine)
+
+	viper.SetConfigName("krato")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+	viper.AddConfigPath("/etc/krato/")
+	if err := viper.ReadInConfig(); err != nil {
+		slog.Debug("No config file located, utilizing explicit variables.")
+	}
+
+	// Refresh variables from viper context enabling ENV limits safely.
+	nodeIDVal := viper.GetString("id")
+	dbPathVal := viper.GetString("db")
+	walPathVal := viper.GetString("wal")
+	grpcPortVal := viper.GetString("grpc")
+	gossipPortVal := viper.GetString("gossip")
+	httpPortVal := viper.GetString("http")
+	seedsVal := viper.GetString("seeds")
+
+	engine, err := store.NewEngine(dbPathVal, walPathVal)
 	if err != nil {
 		slog.Error("failed to open store engine", "error", err)
 		os.Exit(1)
@@ -41,17 +63,17 @@ func main() {
 	defer engine.Close()
 
 	hashRing := ring.NewHashRing(150)
-	hashRing.AddNode(ring.Node{ID: *nodeID, Address: "localhost:" + *grpcPort})
+	hashRing.AddNode(ring.Node{ID: nodeIDVal, Address: "localhost:" + grpcPortVal})
 
 	// Start Gossip Protocol
 	ringCh := make(chan gossip.MemberEvent, 100)
-	gossiper, err := gossip.NewGossiper(*nodeID, "0.0.0.0:"+*gossipPort, "localhost:"+*grpcPort, ringCh)
+	gossiper, err := gossip.NewGossiper(nodeIDVal, "0.0.0.0:"+gossipPortVal, "localhost:"+grpcPortVal, ringCh)
 	if err != nil {
 		slog.Error("failed to configure gossip", "error", err)
 		os.Exit(1)
 	}
 
-	seedList := strings.Split(*seeds, ",")
+	seedList := strings.Split(seedsVal, ",")
 	validSeeds := make([]string, 0)
 	for _, s := range seedList {
 		if s != "" {
@@ -74,31 +96,31 @@ func main() {
 	}()
 
 	grpcServer := grpc.NewServer()
-	nodeServer := kratorpc.NewNodeServer(*nodeID, engine)
+	nodeServer := kratorpc.NewNodeServer(nodeIDVal, engine)
 	kratorpc.RegisterNodeServiceServer(grpcServer, nodeServer)
 
-	lis, err := net.Listen("tcp", ":"+*grpcPort)
+	lis, err := net.Listen("tcp", ":"+grpcPortVal)
 	if err != nil {
 		slog.Error("failed to listen on gRPC port", "error", err)
 		os.Exit(1)
 	}
 
 	go func() {
-		slog.Info("Starting Krato gRPC server", "port", *grpcPort)
+		slog.Info("Starting Krato gRPC server", "port", grpcPortVal)
 		if err := grpcServer.Serve(lis); err != nil {
 			slog.Error("gRPC server failed", "error", err)
 		}
 	}()
 
-	srv := api.NewServer(*nodeID, engine, hashRing)
+	srv := api.NewServer(nodeIDVal, engine, hashRing)
 
 	httpServer := &http.Server{
-		Addr:    ":" + *httpPort,
+		Addr:    ":" + httpPortVal,
 		Handler: srv,
 	}
 
 	go func() {
-		slog.Info("Starting Krato HTTP server", "port", *httpPort)
+		slog.Info("Starting Krato HTTP server", "port", httpPortVal)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("HTTP server failed", "error", err)
 			os.Exit(1)
