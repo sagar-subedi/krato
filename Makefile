@@ -1,18 +1,21 @@
-.PHONY: build test clean run-node run-cli
+.PHONY: build clean run cluster-up cluster-down test
 
 build:
 	go build -o bin/node ./cmd/node
-	go build -o bin/coordinator ./cmd/coordinator
-	go build -o bin/krato ./cmd/cli
+	go build -o bin/krato-cli ./cmd/cli
+
+clean:
+	rm -rf bin/
+	rm -f *.db *.wal
 
 test:
 	go test -v ./...
 
-clean:
-	rm -rf bin/
+cluster-up:
+	docker compose up -d --build
 
-run-node:
-	go run ./cmd/node
+cluster-down:
+	docker compose down -v
 
-run-cli:
-	go run ./cmd/cli
+verify:
+	sh scripts/verify_cluster.sh

@@ -30,6 +30,7 @@ func main() {
 	flag.String("http", "8080", "HTTP API port")
 	flag.String("grpc", "9090", "gRPC port")
 	flag.String("gossip", "7070", "UDP Gossip port")
+	flag.String("advertise", "localhost", "Address to advertise to cluster")
 	flag.String("seeds", "", "comma separated explicit gossip seed addresses")
 
 	flag.Parse()
@@ -54,6 +55,7 @@ func main() {
 	gossipPortVal := viper.GetString("gossip")
 	httpPortVal := viper.GetString("http")
 	seedsVal := viper.GetString("seeds")
+	advertiseVal := viper.GetString("advertise")
 
 	engine, err := store.NewEngine(dbPathVal, walPathVal)
 	if err != nil {
@@ -63,11 +65,11 @@ func main() {
 	defer engine.Close()
 
 	hashRing := ring.NewHashRing(150)
-	hashRing.AddNode(ring.Node{ID: nodeIDVal, Address: "localhost:" + grpcPortVal})
+	hashRing.AddNode(ring.Node{ID: nodeIDVal, Address: advertiseVal + ":" + grpcPortVal})
 
 	// Start Gossip Protocol
 	ringCh := make(chan gossip.MemberEvent, 100)
-	gossiper, err := gossip.NewGossiper(nodeIDVal, "0.0.0.0:"+gossipPortVal, "localhost:"+grpcPortVal, ringCh)
+	gossiper, err := gossip.NewGossiper(nodeIDVal, "0.0.0.0:"+gossipPortVal, advertiseVal + ":" + grpcPortVal, ringCh)
 	if err != nil {
 		slog.Error("failed to configure gossip", "error", err)
 		os.Exit(1)
