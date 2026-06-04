@@ -20,3 +20,5 @@ vendor/
 protoc.zip
 
 .env
+
+*.html
