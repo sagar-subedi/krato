@@ -13,6 +13,8 @@ services:
       - "7070:7070/udp"
     volumes:
       - node1_data:/data
+    environment:
+      - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
 
   node2:
     build:
@@ -26,6 +28,8 @@ services:
       - "7071:7070/udp"
     volumes:
       - node2_data:/data
+    environment:
+      - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
 
   node3:
     build:
@@ -39,6 +43,8 @@ services:
       - "7072:7070/udp"
     volumes:
       - node3_data:/data
+    environment:
+      - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
 
 volumes:
   node1_data:
