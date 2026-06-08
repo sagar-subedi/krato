@@ -40,13 +40,13 @@ type MemberEvent struct {
 }
 
 type Gossiper struct {
-	nodeID    string
-	address   string
-	mu        sync.RWMutex
-	members   map[string]*Member
-	conn      *net.UDPConn
-	quit      chan struct{}
-	ringCh    chan MemberEvent
+	nodeID  string
+	address string
+	mu      sync.RWMutex
+	members map[string]*Member
+	conn    *net.UDPConn
+	quit    chan struct{}
+	ringCh  chan MemberEvent
 }
 
 func NewGossiper(nodeID, address, grpcAddr string, ringCh chan MemberEvent) (*Gossiper, error) {
@@ -98,7 +98,7 @@ func (g *Gossiper) Stop() {
 	mem.State = StateLeft
 	mem.Generation = time.Now().UnixNano()
 	g.mu.Unlock()
-	
+
 	g.gossip() // Output final state
 	close(g.quit)
 	g.conn.Close()
@@ -114,7 +114,7 @@ func (g *Gossiper) join(seeds []string) {
 	}
 	g.mu.RUnlock()
 	data, _ := json.Marshal(msg)
-	
+
 	for _, seed := range seeds {
 		addr, _ := net.ResolveUDPAddr("udp", seed)
 		if addr != nil {

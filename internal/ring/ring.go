@@ -132,3 +132,27 @@ func (hr *HashRing) GetNodes(key string, count int) []Node {
 
 	return results
 }
+
+// GetSnapshot returns a clone of the ring state for visualization.
+func (hr *HashRing) GetSnapshot() map[uint64]string {
+	hr.mu.RLock()
+	defer hr.mu.RUnlock()
+
+	snapshot := make(map[uint64]string, len(hr.keys))
+	for k, v := range hr.keys {
+		snapshot[k] = v
+	}
+	return snapshot
+}
+
+// GetAllNodes returns all physical nodes currently in the ring.
+func (hr *HashRing) GetAllNodes() []Node {
+	hr.mu.RLock()
+	defer hr.mu.RUnlock()
+
+	nodes := make([]Node, 0, len(hr.nodes))
+	for _, n := range hr.nodes {
+		nodes = append(nodes, n)
+	}
+	return nodes
+}

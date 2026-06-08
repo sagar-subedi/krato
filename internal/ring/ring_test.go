@@ -39,7 +39,7 @@ func TestHashRing_Distribution(t *testing.T) {
 	hr.AddNode(Node{ID: "nodeC", Address: "10.0.0.3:8080"})
 
 	distribution := make(map[string]int)
-	
+
 	// Test 10,000 keys distribution
 	for i := 0; i < 10000; i++ {
 		key := fmt.Sprintf("key-%d", i)
@@ -60,14 +60,14 @@ func TestHashRing_Distribution(t *testing.T) {
 
 func TestHashRing_GetNode(t *testing.T) {
 	hr := NewHashRing(150)
-	
+
 	_, ok := hr.GetNode("missing")
 	if ok {
 		t.Fatalf("should not get node on empty ring")
 	}
 
 	hr.AddNode(Node{ID: "A"})
-	
+
 	n, ok := hr.GetNode("someKey")
 	if !ok || n.ID != "A" {
 		t.Fatalf("should route to A")

@@ -18,6 +18,7 @@ type Config struct {
 	GossipPort string
 	Advertise  string
 	Seeds      []string
+	GeminiKey  string
 }
 
 // Load binds flags, maps viper environment limits, and returns a safely formatted Config.
@@ -65,5 +66,6 @@ func Load() (*Config, error) {
 		GossipPort: viper.GetString("gossip"),
 		Advertise:  viper.GetString("advertise"),
 		Seeds:      validSeeds,
+		GeminiKey:  viper.GetString("gemini_api_key"),
 	}, nil
 }

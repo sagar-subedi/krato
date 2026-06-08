@@ -23,6 +23,7 @@ type Store interface {
 	SetWithTTL(key, value []byte, expiresAt int64) error
 	Delete(key []byte) error
 	Scan(prefix []byte) (map[string][]byte, error)
+	Count() (int, error)
 	Close() error
 }
 
@@ -154,6 +155,16 @@ func (s *BoltStore) Sweep() error {
 		}
 		return nil
 	})
+}
+
+func (s *BoltStore) Count() (int, error) {
+	var count int
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(defaultBucket)
+		count = b.Stats().KeyN
+		return nil
+	})
+	return count, err
 }
 
 func (s *BoltStore) Close() error {

@@ -93,12 +93,12 @@ func (e *Engine) SetVersioned(key, value []byte, clock VectorClock, ttl time.Dur
 			clock.Merge(existingClock)
 		}
 	}
-	
+
 	encoded, err := EncodeVersionedValue(value, clock)
 	if err != nil {
 		return err
 	}
-    
+
 	var expiresAt int64
 	if ttl > 0 {
 		expiresAt = time.Now().Add(ttl).UnixNano()
@@ -118,6 +118,10 @@ func (e *Engine) Delete(key []byte) error {
 
 func (e *Engine) Scan(prefix []byte) (map[string][]byte, error) {
 	return e.db.Scan(prefix)
+}
+
+func (e *Engine) Count() (int, error) {
+	return e.db.Count()
 }
 
 func (e *Engine) Close() error {

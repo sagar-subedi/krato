@@ -17,7 +17,7 @@ func NewClient(addr string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &Client{
 		conn:   conn,
 		client: NewNodeServiceClient(conn),

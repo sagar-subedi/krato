@@ -10,7 +10,9 @@ import (
 	"github.com/sagarsubedi/krato/internal/api"
 	"github.com/sagarsubedi/krato/internal/config"
 	"github.com/sagarsubedi/krato/internal/coordinator"
+	"github.com/sagarsubedi/krato/internal/genai"
 	"github.com/sagarsubedi/krato/internal/gossip"
+	"github.com/sagarsubedi/krato/internal/observe"
 	"github.com/sagarsubedi/krato/internal/replication"
 	"github.com/sagarsubedi/krato/internal/ring"
 	kratorpc "github.com/sagarsubedi/krato/internal/rpc"
@@ -26,6 +28,9 @@ type App struct {
 	gossiper    *gossip.Gossiper
 	coord       *coordinator.Coordinator
 	antiEntropy *replication.AntiEntropy
+	events      *observe.EventBus
+	metrics     *observe.Metrics
+	ai          *genai.Engine
 	grpcServer  *grpc.Server
 	httpServer  *http.Server
 }
@@ -37,10 +42,13 @@ func NewApp(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
+	events := observe.NewEventBus(1000)
+	metrics := observe.NewMetrics()
+
 	hashRing := ring.NewHashRing(150)
 	hashRing.AddNode(ring.Node{ID: cfg.ID, Address: cfg.Advertise + ":" + cfg.GRPCPort})
 
-	coord := coordinator.NewCoordinator(cfg.ID, engine, hashRing)
+	coord := coordinator.NewCoordinator(cfg.ID, engine, hashRing, events, metrics)
 	antiEntropy := replication.NewAntiEntropy(coord, 30*time.Second)
 
 	// Gossip Protocol
@@ -58,12 +66,31 @@ func NewApp(cfg *config.Config) (*App, error) {
 				slog.Info("Node joined ring", "id", event.Member.ID, "grpc", event.Member.GrpcAddress)
 				hashRing.AddNode(ring.Node{ID: event.Member.ID, Address: event.Member.GrpcAddress})
 				coord.ConnectPeer(ring.Node{ID: event.Member.ID, Address: event.Member.GrpcAddress})
+				events.Publish(cfg.ID, observe.EventGossip, map[string]interface{}{
+					"type": "join",
+					"id":   event.Member.ID,
+					"grpc": event.Member.GrpcAddress,
+				})
 			} else if event.IsDead {
 				slog.Info("Node left ring", "id", event.Member.ID)
 				hashRing.RemoveNode(event.Member.ID)
+				events.Publish(cfg.ID, observe.EventGossip, map[string]interface{}{
+					"type": "leave",
+					"id":   event.Member.ID,
+				})
 			}
 		}
 	}()
+
+	// Initialize GenAI Engine (if key exists)
+	var aiEngine *genai.Engine
+	if cfg.GeminiKey != "" {
+		var err error
+		aiEngine, err = genai.NewEngine(context.Background(), cfg.GeminiKey, coord, events, metrics)
+		if err != nil {
+			slog.Warn("Failed to initialize AI engine", "error", err)
+		}
+	}
 
 	// gRPC server
 	grpcServer := grpc.NewServer()
@@ -71,7 +98,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 	kratorpc.RegisterNodeServiceServer(grpcServer, nodeServer)
 
 	// HTTP API server
-	apiServer := api.NewServer(coord)
+	apiServer := api.NewServer(coord, events, metrics, aiEngine)
 	httpServer := &http.Server{
 		Addr:    ":" + cfg.HTTPPort,
 		Handler: apiServer,
@@ -84,6 +111,9 @@ func NewApp(cfg *config.Config) (*App, error) {
 		gossiper:    gossiper,
 		coord:       coord,
 		antiEntropy: antiEntropy,
+		events:      events,
+		metrics:     metrics,
+		ai:          aiEngine,
 		grpcServer:  grpcServer,
 		httpServer:  httpServer,
 	}, nil
@@ -127,6 +157,9 @@ func (a *App) Shutdown(ctx context.Context) {
 
 	a.antiEntropy.Stop()
 	a.gossiper.Stop()
+	if a.ai != nil {
+		a.ai.Close()
+	}
 	a.grpcServer.GracefulStop()
 
 	if err := a.httpServer.Shutdown(ctx); err != nil {

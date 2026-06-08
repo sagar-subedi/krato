@@ -2,10 +2,12 @@ package coordinator
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/sagarsubedi/krato/internal/observe"
 	"github.com/sagarsubedi/krato/internal/ring"
 	"github.com/sagarsubedi/krato/internal/rpc"
 	"github.com/sagarsubedi/krato/internal/store"
@@ -14,20 +16,30 @@ import (
 // Coordinator handles distributed quorum reads, writes, and deletes across the
 // hash ring. It owns the RPC client connections and encapsulates all consensus logic
 // separately from HTTP transport concerns.
+type ChaosStatus struct {
+	Latency time.Duration `json:"latency"`
+	Killed  bool          `json:"killed"`
+}
+
 type Coordinator struct {
 	nodeID   string
 	engine   *store.Engine
 	ring     *ring.HashRing
+	events   *observe.EventBus
+	metrics  *observe.Metrics
+	chaos    ChaosStatus
 	mu       sync.RWMutex
 	rpcConns map[string]*rpc.Client
 }
 
 // NewCoordinator creates a new Coordinator instance.
-func NewCoordinator(nodeID string, engine *store.Engine, hashRing *ring.HashRing) *Coordinator {
+func NewCoordinator(nodeID string, engine *store.Engine, hashRing *ring.HashRing, events *observe.EventBus, metrics *observe.Metrics) *Coordinator {
 	return &Coordinator{
 		nodeID:   nodeID,
 		engine:   engine,
 		ring:     hashRing,
+		events:   events,
+		metrics:  metrics,
 		rpcConns: make(map[string]*rpc.Client),
 	}
 }
@@ -106,6 +118,14 @@ type readResult struct {
 
 // Read performs a quorum read across all replica nodes for the given key.
 func (c *Coordinator) Read(ctx context.Context, key string, consistency string) ([]byte, error) {
+	if err := c.applyChaos(); err != nil {
+		return nil, err
+	}
+	start := time.Now()
+	defer func() {
+		c.metrics.RecordRequest(time.Since(start))
+	}()
+
 	nodes := c.ring.GetNodes(key, 3)
 	if len(nodes) == 0 {
 		return nil, ErrNoNodes
@@ -209,11 +229,27 @@ func (c *Coordinator) Read(ctx context.Context, key string, consistency string) 
 		}
 	}
 
+	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
+		"op":          "read",
+		"key":         key,
+		"consistency": consistency,
+		"nodes":       len(nodes),
+		"success":     true,
+	})
+
 	return best.val, nil
 }
 
 // Write performs a quorum write across all replica nodes for the given key.
 func (c *Coordinator) Write(ctx context.Context, key string, value []byte, consistency string) error {
+	if err := c.applyChaos(); err != nil {
+		return err
+	}
+	start := time.Now()
+	defer func() {
+		c.metrics.RecordRequest(time.Since(start))
+	}()
+
 	nodes := c.ring.GetNodes(key, 3)
 	if len(nodes) == 0 {
 		return ErrNoNodes
@@ -284,11 +320,33 @@ func (c *Coordinator) Write(ctx context.Context, key string, value []byte, consi
 		return ErrQuorumFailed
 	}
 
+	// Publish success event for real-time UI updates
+	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
+		"op":          "write",
+		"key":         key,
+		"consistency": consistency,
+		"nodes":       len(nodes),
+		"success":     true,
+	})
+
+	// Update approximate key count in metrics
+	if keys, err := c.engine.Count(); err == nil {
+		c.metrics.UpdateKeyCount(keys)
+	}
+
 	return nil
 }
 
 // Delete performs a quorum delete across all replica nodes for the given key.
 func (c *Coordinator) Delete(ctx context.Context, key string, consistency string) error {
+	if err := c.applyChaos(); err != nil {
+		return err
+	}
+	start := time.Now()
+	defer func() {
+		c.metrics.RecordRequest(time.Since(start))
+	}()
+
 	nodes := c.ring.GetNodes(key, 3)
 	if len(nodes) == 0 {
 		return ErrNoNodes
@@ -333,6 +391,20 @@ func (c *Coordinator) Delete(ctx context.Context, key string, consistency string
 		return ErrQuorumFailed
 	}
 
+	// Publish success event for real-time UI updates
+	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
+		"op":          "delete",
+		"key":         key,
+		"consistency": consistency,
+		"nodes":       len(nodes),
+		"success":     true,
+	})
+
+	// Update approximate key count in metrics
+	if keys, err := c.engine.Count(); err == nil {
+		c.metrics.UpdateKeyCount(keys)
+	}
+
 	return nil
 }
 
@@ -348,4 +420,40 @@ func (c *Coordinator) RepairKey(ctx context.Context, nodeID, key string, value [
 	if err := client.Set(ctx, key, value, 0, clock); err != nil {
 		slog.Debug("Anti-entropy repair failed", "node", nodeID, "key", key, "error", err)
 	}
+}
+
+// Chaos Methods
+
+func (c *Coordinator) SetChaos(latency time.Duration, killed bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.chaos.Latency = latency
+	c.chaos.Killed = killed
+	c.events.Publish(c.nodeID, observe.EventNodeStatus, map[string]interface{}{
+		"node_id": c.nodeID,
+		"status":  "chaos_updated",
+		"latency": latency.String(),
+		"killed":  killed,
+	})
+}
+
+func (c *Coordinator) GetChaos() ChaosStatus {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.chaos
+}
+
+func (c *Coordinator) applyChaos() error {
+	c.mu.RLock()
+	latency := c.chaos.Latency
+	killed := c.chaos.Killed
+	c.mu.RUnlock()
+
+	if killed {
+		return errors.New("node is simulation-killed")
+	}
+	if latency > 0 {
+		time.Sleep(latency)
+	}
+	return nil
 }
