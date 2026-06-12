@@ -70,6 +70,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/chaos", s.handleChaos)
 	s.mux.HandleFunc("/api/ai/chat", s.handleAIChat)
 	s.mux.HandleFunc("/api/keys", s.handleAPIKeys)
+	s.mux.HandleFunc("/api/debug/gossip", s.handleDebugGossip)
 
 	// Serve Static Files
 	fs := http.FileServer(http.Dir("web/dist"))
@@ -344,4 +345,7 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
+}
+func (s *Server) handleDebugGossip(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(s.coord.GetGossipState())
 }

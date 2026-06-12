@@ -48,16 +48,16 @@ func NewApp(cfg *config.Config) (*App, error) {
 	hashRing := ring.NewHashRing(150)
 	hashRing.AddNode(ring.Node{ID: cfg.ID, Address: cfg.Advertise + ":" + cfg.GRPCPort})
 
-	coord := coordinator.NewCoordinator(cfg.ID, engine, hashRing, events, metrics)
-	antiEntropy := replication.NewAntiEntropy(coord, 30*time.Second)
-
 	// Gossip Protocol
 	ringCh := make(chan gossip.MemberEvent, 100)
-	gossiper, err := gossip.NewGossiper(cfg.ID, "0.0.0.0:"+cfg.GossipPort, cfg.Advertise+":"+cfg.GRPCPort, ringCh)
+	gossiper, err := gossip.NewGossiper(cfg.ID, "0.0.0.0:"+cfg.GossipPort, cfg.Advertise+":"+cfg.GossipPort, cfg.Advertise+":"+cfg.GRPCPort, ringCh)
 	if err != nil {
 		engine.Close()
 		return nil, err
 	}
+
+	coord := coordinator.NewCoordinator(cfg.ID, engine, hashRing, events, metrics, cfg.ReplicationFactor, gossiper)
+	antiEntropy := replication.NewAntiEntropy(coord, 30*time.Second)
 
 	// React to gossip membership events: update the hash ring and coordinator connections.
 	go func() {

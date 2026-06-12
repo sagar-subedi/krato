@@ -29,8 +29,9 @@ type Member struct {
 }
 
 type Message struct {
-	Type    string            `json:"type"` // HELLO, SYNC
-	Members map[string]Member `json:"members"`
+	Type     string            `json:"type"` // HELLO, SYNC
+	SenderID string            `json:"sender_id"`
+	Members  map[string]Member `json:"members"`
 }
 
 type MemberEvent struct {
@@ -47,10 +48,12 @@ type Gossiper struct {
 	conn    *net.UDPConn
 	quit    chan struct{}
 	ringCh  chan MemberEvent
+	enabled bool
+	seeds   []string
 }
 
-func NewGossiper(nodeID, address, grpcAddr string, ringCh chan MemberEvent) (*Gossiper, error) {
-	addr, err := net.ResolveUDPAddr("udp", address)
+func NewGossiper(nodeID, bindAddr, advAddr, grpcAddr string, ringCh chan MemberEvent) (*Gossiper, error) {
+	addr, err := net.ResolveUDPAddr("udp", bindAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -62,17 +65,18 @@ func NewGossiper(nodeID, address, grpcAddr string, ringCh chan MemberEvent) (*Go
 
 	g := &Gossiper{
 		nodeID:  nodeID,
-		address: address,
+		address: advAddr,
 		members: make(map[string]*Member),
 		conn:    conn,
 		quit:    make(chan struct{}),
 		ringCh:  ringCh,
+		enabled: true,
 	}
 
 	// Register self
 	g.members[nodeID] = &Member{
 		ID:          nodeID,
-		GossipAddr:  address,
+		GossipAddr:  advAddr,
 		GrpcAddress: grpcAddr,
 		State:       StateAlive,
 		Generation:  time.Now().UnixNano(),
@@ -83,13 +87,39 @@ func NewGossiper(nodeID, address, grpcAddr string, ringCh chan MemberEvent) (*Go
 }
 
 func (g *Gossiper) Start(seedNodes []string) {
+	g.mu.Lock()
+	g.seeds = seedNodes
+	g.mu.Unlock()
+
 	go g.listen()
 	go g.gossipLoop()
 	go g.failureDetectionLoop()
 
 	if len(seedNodes) > 0 {
 		g.join(seedNodes)
+		// Re-join after short delays to handle startup race conditions.
+		// All nodes start simultaneously; seeds may not all be ready to receive.
+		go func() {
+			for _, delay := range []time.Duration{2 * time.Second, 5 * time.Second, 10 * time.Second} {
+				time.Sleep(delay)
+				g.join(seedNodes)
+			}
+		}()
 	}
+}
+
+func (g *Gossiper) SetEnabled(enabled bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	
+	if !g.enabled && enabled {
+		// Bumping generation on restoration ensures our "ALIVE" state 
+		// overrides any "DEAD" markers peers might have gossiped.
+		g.members[g.nodeID].Generation = time.Now().UnixNano()
+		slog.Info("Gossiper RESTORED, bumping generation", "id", g.nodeID, "new_gen", g.members[g.nodeID].Generation)
+		go g.join(g.seeds)
+	}
+	g.enabled = enabled
 }
 
 func (g *Gossiper) Stop() {
@@ -107,7 +137,8 @@ func (g *Gossiper) Stop() {
 func (g *Gossiper) join(seeds []string) {
 	g.mu.RLock()
 	msg := Message{
-		Type: "HELLO",
+		Type:     "HELLO",
+		SenderID: g.nodeID,
 		Members: map[string]Member{
 			g.nodeID: *g.members[g.nodeID],
 		},
@@ -136,15 +167,26 @@ func (g *Gossiper) listen() {
 			}
 		}
 
-		var msg Message
-		if err := json.NewDecoder(bytes.NewReader(buf[:n])).Decode(&msg); err != nil {
+		g.mu.RLock()
+		enabled := g.enabled
+		g.mu.RUnlock()
+		if !enabled {
 			continue
 		}
-		g.merge(msg.Members)
+
+		slog.Debug("Gossip packet received", "bytes", n)
+
+		var msg Message
+		if err := json.NewDecoder(bytes.NewReader(buf[:n])).Decode(&msg); err != nil {
+			slog.Error("Gossip decode failed", "error", err)
+			continue
+		}
+		g.merge(msg.SenderID, msg.Members)
 	}
 }
 
-func (g *Gossiper) merge(remote map[string]Member) {
+func (g *Gossiper) merge(senderID string, remote map[string]Member) {
+	slog.Debug("Gossip merge started", "nodes_in_packet", len(remote))
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -175,13 +217,26 @@ func (g *Gossiper) merge(remote map[string]Member) {
 			lMem.Generation = rMem.Generation
 			lMem.LastSeen = time.Now()
 
+			slog.Info("Gossip update merged", "id", id, "from_state", prevState, "to_state", rMem.State, "gen", rMem.Generation)
+
 			if prevState != StateAlive && rMem.State == StateAlive {
 				g.notifyRing(*lMem, true, false)
 			} else if prevState != StateDead && rMem.State == StateDead {
 				g.notifyRing(*lMem, false, true)
 			}
 		} else if rMem.Generation == lMem.Generation {
-			lMem.LastSeen = time.Now() // simple heartbeat sync matching tracking
+			// AUTHORITATIVE RESET: If this message came DIRECTLY from the node itself 
+			// and it's claiming to be ALIVE, we trust it and reset its state/timers.
+			// This allows a restored node to re-join peers who may have marked it as DEAD
+			// during its isolation, without needing a secondary generation bump.
+			if id == senderID && rMem.State == StateAlive {
+				lMem.LastSeen = time.Now()
+				if lMem.State != StateAlive {
+					slog.Info("Gossip state healed by direct heartbeat", "id", id, "new_state", StateAlive)
+					lMem.State = StateAlive
+					g.notifyRing(*lMem, true, false)
+				}
+			}
 		}
 	}
 }
@@ -203,7 +258,12 @@ func (g *Gossiper) gossipLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			g.gossip()
+			g.mu.RLock()
+			enabled := g.enabled
+			g.mu.RUnlock()
+			if enabled {
+				g.gossip()
+			}
 		case <-g.quit:
 			return
 		}
@@ -214,8 +274,9 @@ func (g *Gossiper) gossip() {
 	g.mu.RLock()
 	peers := make([]*Member, 0)
 	msg := Message{
-		Type:    "SYNC",
-		Members: make(map[string]Member),
+		Type:     "SYNC",
+		SenderID: g.nodeID,
+		Members:  make(map[string]Member),
 	}
 	for id, m := range g.members {
 		msg.Members[id] = *m
@@ -271,13 +332,15 @@ func (g *Gossiper) detectFailures() {
 		if m.State == StateAlive {
 			if now.Sub(m.LastSeen) > 3*time.Second {
 				m.State = StateSuspect
-				m.Generation = now.UnixNano()
 				slog.Warn("Node suspect", "id", id)
 			}
 		} else if m.State == StateSuspect {
 			if now.Sub(m.LastSeen) > 8*time.Second {
 				m.State = StateDead
-				m.Generation = now.UnixNano()
+				// REMOVED: m.Generation = now.UnixNano() 
+				// Only the node itself should update its authoritative Generation for state changes.
+				// By not bumping generation here, we allow the node to override this "Dead" 
+				// state with its own slightly newer "Alive" generation when it comes back.
 				slog.Error("Node dead", "id", id)
 				g.notifyRing(*m, false, true)
 			}
@@ -293,6 +356,16 @@ func (g *Gossiper) GetMembers() []Member {
 		if m.State == StateAlive {
 			res = append(res, *m)
 		}
+	}
+	return res
+}
+
+func (g *Gossiper) GetFullState() map[string]Member {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	res := make(map[string]Member)
+	for id, m := range g.members {
+		res[id] = *m
 	}
 	return res
 }

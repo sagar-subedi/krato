@@ -7,11 +7,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sagarsubedi/krato/internal/gossip"
 	"github.com/sagarsubedi/krato/internal/observe"
 	"github.com/sagarsubedi/krato/internal/ring"
 	"github.com/sagarsubedi/krato/internal/rpc"
 	"github.com/sagarsubedi/krato/internal/store"
 )
+
+// Gossiper defines the subset of gossip functionality needed by the coordinator.
+type Gossiper interface {
+	SetEnabled(enabled bool)
+	GetFullState() map[string]gossip.Member
+}
 
 // Coordinator handles distributed quorum reads, writes, and deletes across the
 // hash ring. It owns the RPC client connections and encapsulates all consensus logic
@@ -30,10 +37,12 @@ type Coordinator struct {
 	chaos    ChaosStatus
 	mu       sync.RWMutex
 	rpcConns map[string]*rpc.Client
+	rf       int
+	gossip   Gossiper
 }
 
 // NewCoordinator creates a new Coordinator instance.
-func NewCoordinator(nodeID string, engine *store.Engine, hashRing *ring.HashRing, events *observe.EventBus, metrics *observe.Metrics) *Coordinator {
+func NewCoordinator(nodeID string, engine *store.Engine, hashRing *ring.HashRing, events *observe.EventBus, metrics *observe.Metrics, rf int, g Gossiper) *Coordinator {
 	return &Coordinator{
 		nodeID:   nodeID,
 		engine:   engine,
@@ -41,6 +50,8 @@ func NewCoordinator(nodeID string, engine *store.Engine, hashRing *ring.HashRing
 		events:   events,
 		metrics:  metrics,
 		rpcConns: make(map[string]*rpc.Client),
+		rf:       rf,
+		gossip:   g,
 	}
 }
 
@@ -126,7 +137,7 @@ func (c *Coordinator) Read(ctx context.Context, key string, consistency string) 
 		c.metrics.RecordRequest(time.Since(start))
 	}()
 
-	nodes := c.ring.GetNodes(key, 3)
+	nodes := c.ring.GetNodes(key, c.rf)
 	if len(nodes) == 0 {
 		return nil, ErrNoNodes
 	}
@@ -229,7 +240,7 @@ func (c *Coordinator) Read(ctx context.Context, key string, consistency string) 
 		}
 	}
 
-	keyHash, replicaIDs := c.ring.GetKeyInfo(key, 3)
+	keyHash, replicaIDs := c.ring.GetKeyInfo(key, c.rf)
 	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
 		"op":           "read",
 		"key":          key,
@@ -253,7 +264,7 @@ func (c *Coordinator) Write(ctx context.Context, key string, value []byte, consi
 		c.metrics.RecordRequest(time.Since(start))
 	}()
 
-	nodes := c.ring.GetNodes(key, 3)
+	nodes := c.ring.GetNodes(key, c.rf)
 	if len(nodes) == 0 {
 		return ErrNoNodes
 	}
@@ -324,7 +335,7 @@ func (c *Coordinator) Write(ctx context.Context, key string, value []byte, consi
 	}
 
 	// Publish success event for real-time UI updates
-	keyHash, replicaIDs := c.ring.GetKeyInfo(key, 3)
+	keyHash, replicaIDs := c.ring.GetKeyInfo(key, c.rf)
 	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
 		"op":           "write",
 		"key":          key,
@@ -353,7 +364,7 @@ func (c *Coordinator) Delete(ctx context.Context, key string, consistency string
 		c.metrics.RecordRequest(time.Since(start))
 	}()
 
-	nodes := c.ring.GetNodes(key, 3)
+	nodes := c.ring.GetNodes(key, c.rf)
 	if len(nodes) == 0 {
 		return ErrNoNodes
 	}
@@ -398,7 +409,7 @@ func (c *Coordinator) Delete(ctx context.Context, key string, consistency string
 	}
 
 	// Publish success event for real-time UI updates
-	keyHash, replicaIDs := c.ring.GetKeyInfo(key, 3)
+	keyHash, replicaIDs := c.ring.GetKeyInfo(key, c.rf)
 	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
 		"op":           "delete",
 		"key":          key,
@@ -443,6 +454,10 @@ func (c *Coordinator) SetChaos(latency time.Duration, killed bool) {
 	c.chaos.Latency = latency
 	c.chaos.Killed = killed
 
+	if c.gossip != nil {
+		c.gossip.SetEnabled(!killed)
+	}
+
 	c.events.Publish(c.nodeID, observe.EventNodeStatus, map[string]interface{}{
 		"node_id":      c.nodeID,
 		"status":       "chaos_updated",
@@ -472,4 +487,10 @@ func (c *Coordinator) applyChaos() error {
 		time.Sleep(latency)
 	}
 	return nil
+}
+func (c *Coordinator) GetGossipState() map[string]gossip.Member {
+	if c.gossip == nil {
+		return nil
+	}
+	return c.gossip.GetFullState()
 }

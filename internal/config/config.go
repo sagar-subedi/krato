@@ -17,8 +17,9 @@ type Config struct {
 	GRPCPort   string
 	GossipPort string
 	Advertise  string
-	Seeds      []string
-	GeminiKey  string
+	Seeds            []string
+	GeminiKey        string
+	ReplicationFactor int
 }
 
 // Load binds flags, maps viper environment limits, and returns a safely formatted Config.
@@ -32,6 +33,7 @@ func Load() (*Config, error) {
 		flag.String("gossip", "7070", "UDP Gossip port")
 		flag.String("advertise", "localhost", "Address to advertise to cluster")
 		flag.String("seeds", "", "comma separated explicit gossip seed addresses")
+		flag.Int("rf", 3, "replication factor")
 		flag.Parse()
 	}
 
@@ -66,6 +68,7 @@ func Load() (*Config, error) {
 		GossipPort: viper.GetString("gossip"),
 		Advertise:  viper.GetString("advertise"),
 		Seeds:      validSeeds,
-		GeminiKey:  viper.GetString("gemini_api_key"),
+		GeminiKey:         viper.GetString("gemini_api_key"),
+		ReplicationFactor: viper.GetInt("rf"),
 	}, nil
 }

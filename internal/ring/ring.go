@@ -37,10 +37,6 @@ func (hr *HashRing) AddNode(node Node) {
 	hr.mu.Lock()
 	defer hr.mu.Unlock()
 
-	if _, exists := hr.nodes[node.ID]; exists {
-		return
-	}
-
 	hr.nodes[node.ID] = node
 
 	for i := 0; i < hr.vNodes; i++ {
@@ -58,10 +54,6 @@ func (hr *HashRing) AddNode(node Node) {
 func (hr *HashRing) RemoveNode(nodeID string) {
 	hr.mu.Lock()
 	defer hr.mu.Unlock()
-
-	if _, exists := hr.nodes[nodeID]; !exists {
-		return
-	}
 
 	delete(hr.nodes, nodeID)
 

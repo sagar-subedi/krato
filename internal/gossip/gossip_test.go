@@ -9,8 +9,8 @@ func TestGossipJoin(t *testing.T) {
 	ch1 := make(chan MemberEvent, 10)
 	ch2 := make(chan MemberEvent, 10)
 
-	g1, _ := NewGossiper("N1", "127.0.0.1:17001", "127.0.0.1:19001", ch1)
-	g2, _ := NewGossiper("N2", "127.0.0.1:17002", "127.0.0.1:19002", ch2)
+	g1, _ := NewGossiper("N1", "127.0.0.1:17001", "127.0.0.1:17001", "127.0.0.1:19001", ch1)
+	g2, _ := NewGossiper("N2", "127.0.0.1:17002", "127.0.0.1:17002", "127.0.0.1:19002", ch2)
 
 	g1.Start(nil)
 	g2.Start([]string{"127.0.0.1:17001"})
@@ -36,8 +36,8 @@ func TestGossipFailureDetection(t *testing.T) {
 	ch1 := make(chan MemberEvent, 10)
 	ch2 := make(chan MemberEvent, 10)
 
-	g1, _ := NewGossiper("N1", "127.0.0.1:17003", "127.0.0.1:19003", ch1)
-	g2, _ := NewGossiper("N2", "127.0.0.1:17004", "127.0.0.1:19004", ch2)
+	g1, _ := NewGossiper("N1", "127.0.0.1:17003", "127.0.0.1:17003", "127.0.0.1:19003", ch1)
+	g2, _ := NewGossiper("N2", "127.0.0.1:17004", "127.0.0.1:17004", "127.0.0.1:19004", ch2)
 
 	g1.Start(nil)
 	g2.Start([]string{"127.0.0.1:17003"})
