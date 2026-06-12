@@ -229,12 +229,15 @@ func (c *Coordinator) Read(ctx context.Context, key string, consistency string) 
 		}
 	}
 
+	keyHash, replicaIDs := c.ring.GetKeyInfo(key, 3)
 	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
-		"op":          "read",
-		"key":         key,
-		"consistency": consistency,
-		"nodes":       len(nodes),
-		"success":     true,
+		"op":           "read",
+		"key":          key,
+		"key_hash":     keyHash,
+		"replica_nodes": replicaIDs,
+		"consistency":  consistency,
+		"nodes":        len(nodes),
+		"success":      true,
 	})
 
 	return best.val, nil
@@ -321,12 +324,15 @@ func (c *Coordinator) Write(ctx context.Context, key string, value []byte, consi
 	}
 
 	// Publish success event for real-time UI updates
+	keyHash, replicaIDs := c.ring.GetKeyInfo(key, 3)
 	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
-		"op":          "write",
-		"key":         key,
-		"consistency": consistency,
-		"nodes":       len(nodes),
-		"success":     true,
+		"op":           "write",
+		"key":          key,
+		"key_hash":     keyHash,
+		"replica_nodes": replicaIDs,
+		"consistency":  consistency,
+		"nodes":        len(nodes),
+		"success":      true,
 	})
 
 	// Update approximate key count in metrics
@@ -392,12 +398,15 @@ func (c *Coordinator) Delete(ctx context.Context, key string, consistency string
 	}
 
 	// Publish success event for real-time UI updates
+	keyHash, replicaIDs := c.ring.GetKeyInfo(key, 3)
 	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
-		"op":          "delete",
-		"key":         key,
-		"consistency": consistency,
-		"nodes":       len(nodes),
-		"success":     true,
+		"op":           "delete",
+		"key":          key,
+		"key_hash":     keyHash,
+		"replica_nodes": replicaIDs,
+		"consistency":  consistency,
+		"nodes":        len(nodes),
+		"success":      true,
 	})
 
 	// Update approximate key count in metrics
@@ -427,13 +436,20 @@ func (c *Coordinator) RepairKey(ctx context.Context, nodeID, key string, value [
 func (c *Coordinator) SetChaos(latency time.Duration, killed bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// Capture ring snapshot before any change for redistribution animation
+	ringBefore := c.ring.GetSnapshot()
+
 	c.chaos.Latency = latency
 	c.chaos.Killed = killed
+
 	c.events.Publish(c.nodeID, observe.EventNodeStatus, map[string]interface{}{
-		"node_id": c.nodeID,
-		"status":  "chaos_updated",
-		"latency": latency.String(),
-		"killed":  killed,
+		"node_id":      c.nodeID,
+		"status":       "chaos_updated",
+		"latency":      latency.String(),
+		"killed":       killed,
+		"ring_before":  ringBefore,
+		"ring_after":   c.ring.GetSnapshot(), // same until gossip removes the node
 	})
 }
 

@@ -23,6 +23,8 @@ const App: React.FC = () => {
   const [ringData, setRingData] = useState<RingSnapshot>({});
   const [cluster, setCluster] = useState<ClusterState | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [activeKeyOp, setActiveKeyOp] = useState<KratoEvent | null>(null);
+  const [activeNodeEvent, setActiveNodeEvent] = useState<KratoEvent | null>(null);
 
   useEffect(() => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -37,8 +39,15 @@ const App: React.FC = () => {
       const event = JSON.parse(e.data) as KratoEvent;
       setEvents(prev => [event, ...prev.slice(0, 49)]);
       
+      if (event.type === 'key_op') {
+        setActiveKeyOp(event);
+      }
+      
+      if (event.type === 'node_status') {
+        setActiveNodeEvent(event);
+      }
+
       // Real-time metric updates if possible from event data
-      // For now, simple re-fetch on cluster changes
       if (['gossip', 'node_status', 'key_op'].includes(event.type)) {
         fetchInitialData();
       }
@@ -236,7 +245,12 @@ const App: React.FC = () => {
                <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
                <span className="text-[10px] font-bold tracking-widest text-text-dim uppercase font-heading">Consistent Hash Ring</span>
             </div>
-            <HashRing ringData={ringData} nodes={cluster?.nodes || []} />
+            <HashRing 
+              ringData={ringData} 
+              nodes={cluster?.nodes || []} 
+              activeOp={activeKeyOp}
+              nodeEvent={activeNodeEvent}
+            />
           </div>
           
           <div className="h-2/5 min-h-[300px]">

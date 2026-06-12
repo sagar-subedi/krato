@@ -156,3 +156,39 @@ func (hr *HashRing) GetAllNodes() []Node {
 	}
 	return nodes
 }
+
+// GetKeyInfo returns the xxhash of the given key and the IDs of its N replica
+// nodes as they appear in ring order. Used to enrich observability events so
+// the frontend can visualise key placement and replica highlighting.
+func (hr *HashRing) GetKeyInfo(key string, replicas int) (uint64, []string) {
+	hr.mu.RLock()
+	defer hr.mu.RUnlock()
+
+	if len(hr.ring) == 0 {
+		return 0, nil
+	}
+
+	h := hashKey(key)
+
+	idx := sort.Search(len(hr.ring), func(i int) bool {
+		return hr.ring[i] >= h
+	})
+	if idx == len(hr.ring) {
+		idx = 0
+	}
+
+	var nodeIDs []string
+	seen := make(map[string]bool)
+	for i := 0; i < len(hr.ring); i++ {
+		nodeID := hr.keys[hr.ring[(idx+i)%len(hr.ring)]]
+		if !seen[nodeID] {
+			seen[nodeID] = true
+			nodeIDs = append(nodeIDs, nodeID)
+			if len(nodeIDs) == replicas {
+				break
+			}
+		}
+	}
+
+	return h, nodeIDs
+}

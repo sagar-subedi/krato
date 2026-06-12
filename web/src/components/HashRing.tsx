@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import type { KratoEvent, KeyOpMetadata, NodeStatusMetadata } from '../types';
 
 interface VNode {
   hash: bigint;
@@ -9,10 +10,13 @@ interface VNode {
 interface HashRingProps {
   ringData: Record<string, string>;
   nodes: { ID: string; Address: string }[];
+  activeOp?: KratoEvent | null;
+  nodeEvent?: KratoEvent | null;
 }
 
-const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [] }) => {
+const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [], activeOp, nodeEvent }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -34,14 +38,6 @@ const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [] }) => {
     const feMerge = glow.append('feMerge');
     feMerge.append('feMergeNode').attr('in', 'blur');
     feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
-
-    // Gradient for lines
-    const gradient = defs.append('linearGradient')
-      .attr('id', 'line-gradient')
-      .attr('x1', '0%').attr('y1', '0%')
-      .attr('x2', '100%').attr('y2', '100%');
-    gradient.append('stop').attr('offset', '0%').attr('stop-color', '#6366f1');
-    gradient.append('stop').attr('offset', '100%').attr('stop-color', '#a855f7');
 
     const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
 
@@ -65,7 +61,7 @@ const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [] }) => {
     const toAngle = (hash: bigint) =>
       (Number((hash * BigInt(3600000)) / MAX_HASH) / 10 - 90) * (Math.PI / 180);
 
-    // Draw lines from center to nodes
+    // Draw lines from center to nodes (subtle support)
     vnodes.forEach(vn => {
       const angle = toAngle(vn.hash);
       const x = (radius - 10) * Math.cos(angle);
@@ -76,7 +72,7 @@ const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [] }) => {
         .attr('x2', x).attr('y2', y)
         .attr('stroke', colors(vn.nodeId))
         .attr('stroke-width', 0.5)
-        .attr('opacity', 0.05);
+        .attr('opacity', 0.03);
     });
 
     // Draw vnode dots
@@ -91,32 +87,28 @@ const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [] }) => {
       .attr('fill', vn => colors(vn.nodeId))
       .attr('opacity', 0.6);
 
-    // Draw physical nodes labels
+    // Draw physical nodes
+    const nodePositions: Record<string, { x: number, y: number, angle: number }> = {};
     nodes.forEach((node, i) => {
       const angle = ((i / nodes.length) * 360 - 90) * (Math.PI / 180);
       const lr = radius + 60;
       const x = lr * Math.cos(angle);
       const y = lr * Math.sin(angle);
+      nodePositions[node.ID] = { x, y, angle };
 
-      const ng = g.append('g').attr('transform', `translate(${x},${y})`);
+      const ng = g.append('g').attr('transform', `translate(${x},${y})`).attr('id', `node-group-${node.ID}`);
 
-      // Node ring
       ng.append('circle')
         .attr('r', 14)
         .attr('fill', 'rgba(0,0,0,0.5)')
         .attr('stroke', colors(node.ID))
         .attr('stroke-width', 2)
-        .attr('class', 'filter glow-ring');
+        .attr('class', 'glow-ring');
 
-      // Pulsing center
       ng.append('circle')
         .attr('r', 4)
         .attr('fill', colors(node.ID))
-        .append('animate')
-        .attr('attributeName', 'opacity')
-        .attr('values', '1;0.4;1')
-        .attr('dur', '2s')
-        .attr('repeatCount', 'indefinite');
+        .attr('class', 'status-dot');
 
       ng.append('text')
         .attr('dy', 34)
@@ -153,10 +145,150 @@ const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [] }) => {
       .attr('letter-spacing', '2px')
       .text('TOTAL VNODES');
 
-  }, [ringData, nodes]);
+    // ANIMATION: Key Placement (Pulse + Arcs)
+    if (activeOp && activeOp.type === 'key_op') {
+      const meta = activeOp.metadata as KeyOpMetadata;
+      const hashPos = BigInt(meta.key_hash);
+      const angle = toAngle(hashPos);
+      const x = radius * Math.cos(angle);
+      const y = radius * Math.sin(angle);
+      const opColor = meta.op === 'write' ? '#6366f1' : meta.op === 'delete' ? '#ef4444' : '#10b981';
+
+      // 1. Central Pulse
+      const pulse = g.append('circle')
+        .attr('cx', x)
+        .attr('cy', y)
+        .attr('r', 2)
+        .attr('fill', opColor)
+        .attr('filter', 'url(#glow-ring)');
+
+      pulse.transition()
+        .duration(600)
+        .attr('r', 12)
+        .style('opacity', 0)
+        .remove();
+
+      g.append('circle')
+        .attr('cx', x)
+        .attr('cy', y)
+        .attr('r', 4)
+        .attr('fill', opColor)
+        .transition()
+        .delay(2000)
+        .duration(500)
+        .style('opacity', 0)
+        .remove();
+
+      // Label
+      g.append('text')
+        .attr('x', x)
+        .attr('y', y - 10)
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'white')
+        .attr('font-size', '9px')
+        .attr('font-weight', 'bold')
+        .attr('font-family', 'JetBrains Mono')
+        .text(meta.key)
+        .transition()
+        .delay(2000)
+        .duration(500)
+        .style('opacity', 0)
+        .remove();
+
+      // 2. Replica Arcs
+      meta.replica_nodes.forEach((nodeId, i) => {
+        const dest = nodePositions[nodeId];
+        if (!dest) return;
+
+        const pathData = d3.path();
+        pathData.moveTo(x, y);
+        // Curve toward the physical node
+        pathData.quadraticCurveTo(x * 1.2, y * 1.2, dest.x, dest.y);
+
+        const arc = g.append('path')
+          .attr('d', pathData.toString())
+          .attr('fill', 'none')
+          .attr('stroke', opColor)
+          .attr('stroke-width', 2)
+          .attr('opacity', 0.4)
+          .attr('stroke-dasharray', function() { return (this as SVGPathElement).getTotalLength(); })
+          .attr('stroke-dashoffset', function() { return (this as SVGPathElement).getTotalLength(); });
+
+        arc.transition()
+          .delay(i * 100)
+          .duration(800)
+          .attr('stroke-dashoffset', 0)
+          .transition()
+          .delay(1000)
+          .duration(500)
+          .style('opacity', 0)
+          .remove();
+
+        // Highlight the node
+        d3.select(`#node-group-${nodeId} .glow-ring`)
+          .transition()
+          .delay(i * 100 + 400)
+          .duration(300)
+          .attr('stroke-width', 6)
+          .transition()
+          .duration(300)
+          .attr('stroke-width', 2);
+      });
+    }
+
+    // ANIMATION: Node Redistribution (Isolation)
+    if (nodeEvent && nodeEvent.type === 'node_status') {
+      const meta = nodeEvent.metadata as NodeStatusMetadata;
+      if (meta.killed && meta.ring_before) {
+        const ringBefore = meta.ring_before;
+        const ringAfter = ringData; // use latest prop
+        const deadNode = meta.node_id;
+
+        // Find vnodes that transitioned from deadNode to something else
+        Object.entries(ringBefore).forEach(([hashStr, nodeId]) => {
+          if (nodeId === deadNode) {
+            const hashVal = BigInt(hashStr);
+            const newNodeId = ringAfter[hashStr];
+            if (newNodeId && newNodeId !== deadNode) {
+              // Animate flow to new successor
+              const startAngle = toAngle(hashVal);
+              const endNode = nodePositions[newNodeId];
+              if (!endNode) return;
+
+              const flowDot = g.append('circle')
+                .attr('cx', radius * Math.cos(startAngle))
+                .attr('cy', radius * Math.sin(startAngle))
+                .attr('r', 3)
+                .attr('fill', colors(newNodeId))
+                .attr('filter', 'url(#glow-ring)');
+
+              flowDot.transition()
+                .duration(1500)
+                .ease(d3.easeCubicInOut)
+                .attr('cx', endNode.x)
+                .attr('cy', endNode.y)
+                .style('opacity', 0)
+                .remove();
+            }
+          }
+        });
+
+        // Pulse the successors
+        d3.selectAll('.glow-ring')
+          .transition()
+          .delay(1000)
+          .duration(500)
+          .attr('stroke', '#10b981')
+          .transition()
+          .duration(500)
+          .attr('stroke', d => colors(d as any));
+      }
+    }
+
+  }, [ringData, nodes, activeOp, nodeEvent]);
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center relative">
+    <div ref={containerRef} className="flex-1 flex flex-col items-center justify-center relative">
       <svg
         ref={svgRef}
         width="600"
