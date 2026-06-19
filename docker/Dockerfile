@@ -1,9 +1,10 @@
 # --- STAGE 1: Frontend Build ---
 FROM node:20-alpine AS web-builder
-WORKDIR /web
-COPY web/package*.json ./
-RUN npm install
+WORKDIR /app
+# Copy the entire web directory to maintain internal consistency
 COPY web/ ./
+RUN npm ci
+# Build from the /app directory where index.html resides
 RUN npm run build
 
 # --- STAGE 2: Backend Build ---
@@ -25,7 +26,7 @@ WORKDIR /app
 # Copy binary from go-builder
 COPY --from=go-builder /app/krato-node /app/node
 # Copy assets from web-builder
-COPY --from=web-builder /web/dist /app/web/dist
+COPY --from=web-builder /app/dist /app/web/dist
 
 # Default ports
 EXPOSE 8080 9090 7070
