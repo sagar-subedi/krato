@@ -1,11 +1,13 @@
 # --- STAGE 1: Frontend Build ---
 FROM node:20 AS web-builder
 WORKDIR /app
-COPY web/package*.json ./
+# Copy manifest files first for caching
+COPY web/package.json web/package-lock.json ./
 RUN npm ci
-COPY web/ ./
-# Debug: Ensure index.html is here
-RUN ls -la index.html
+# Copy everything from web/ to current dir
+COPY web .
+# Debug: Where are the files?
+RUN ls -R
 RUN npx tsc -b
 RUN npx vite build --debug
 
