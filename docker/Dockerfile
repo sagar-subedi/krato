@@ -1,11 +1,13 @@
 # --- STAGE 1: Frontend Build ---
-FROM node:20-alpine AS web-builder
+FROM node:20 AS web-builder
 WORKDIR /app
-# Copy the entire web directory to maintain internal consistency
-COPY web/ ./
+COPY web/package*.json ./
 RUN npm ci
-# Build from the /app directory where index.html resides
-RUN npm run build
+COPY web/ ./
+# Debug: Ensure index.html is here
+RUN ls -la index.html
+RUN npx tsc -b
+RUN npx vite build --debug
 
 # --- STAGE 2: Backend Build ---
 FROM  golang:1.25-alpine AS go-builder
