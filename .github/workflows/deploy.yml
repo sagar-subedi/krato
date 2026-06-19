@@ -2,7 +2,7 @@ name: Build and Deploy Krato
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
 
 env:
   REGISTRY: ghcr.io

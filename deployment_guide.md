@@ -54,7 +54,7 @@ Add the following **Repository secrets**:
 ## 4. Triggering the Deployment
 Once the secrets are set:
 
-1. **Push to master**: Any push to the `master` branch will trigger the workflow.
+1. **Push to main**: Any push to the `main` branch will trigger the workflow.
 2. **Monitor Actions**: Go to the **Actions** tab in GitHub to see the build and deployment progress.
 3. **Verify**: Once finished, visit `http://YOUR_VPS_IP:18080` to see your live Krato dashboard!
 
