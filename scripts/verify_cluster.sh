@@ -18,11 +18,11 @@ sleep 5
 
 echo "------------------------------------------------------"
 echo "VERIFICATION 1: Routing & Quorums"
-echo "> Setting 'fruit=apple' against Node1 (Port 8080)"
-./bin/krato-cli --api="http://localhost:8080" set fruit apple
+echo "> Setting 'fruit=apple' against Nnodes=(18080 18081 18082)"
+./bin/krato-cli --api="http://localhost:18080" set fruit apple
 
-echo "> Reading 'fruit' back from Node3 (Port 8082) seamlessly mapping Coordinator routers."
-./bin/krato-cli --api="http://localhost:8082" get fruit
+echo "> Reading 'fruit' back from Node3 (Port 18082) seamlessly mapping Coordinator routers."
+./bin/krato-cli --api="http://localhost:18082" get fruit
 echo ""
 
 echo "------------------------------------------------------"

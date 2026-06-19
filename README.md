@@ -28,19 +28,19 @@ Here is exactly how to verify all core features securely natively! Or run `make 
 ### 1. Consistent Hash Ring & Coordination
 **Test**: Send requests to any node, and see how properties map synchronously bridging native contexts!
 ```bash
-# Set a value by sending to node 1 (8080)
-./bin/krato-cli --api="http://localhost:8080" set fruit apple
+# Set a value by sending to node 1 (18080)
+./bin/krato-cli --api="http://localhost:18080" set fruit apple
 
-# Read the value back from node 3 (8082) seamlessly!
+# Read the value back from node 3 (18082) seamlessly!
 # Node 3 coordinates the read internally querying the target partition natively!
-./bin/krato-cli --api="http://localhost:8082" get fruit
+./bin/krato-cli --api="http://localhost:18082" get fruit
 ```
 
 ### 2. N=3 Replication & Vector Clocks
 **Test**: Set a value natively tracking vector consistency, then kill a node checking read-repairs!
 1. Set a value (e.g. `vehicle=car`)
 2. Use `docker-compose stop node2` to kill a node simulating an outage.
-3. Fetch the data again (`./bin/krato-cli --api="http://localhost:8080" get vehicle`); the system returns successful boundaries maintaining Quorum (W=2 / R=2). 
+3. Fetch the data again (`./bin/krato-cli --api="http://localhost:18080" get vehicle`); the system returns successful boundaries maintaining Quorum (W=2 / R=2). 
 4. Bring `node2` back (`docker-compose start node2`). Vector Clocks ensure active metrics automatically merge older metrics natively executing concurrent bounds autonomously matching explicitly via read-repair scripts dynamically.
 
 ### 3. Gossip Protocol
@@ -67,5 +67,5 @@ krato-ai> Change it to 'orange' please!
 ### 5. Prometheus Metrics
 Monitor the active telemetry limits spanning ops structures dynamically!
 ```bash
-curl http://localhost:8080/metrics | grep krato
+curl http://localhost:18080/metrics | grep krato
 ```

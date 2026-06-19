@@ -1,0 +1,50 @@
+# Krato Production Cluster - VPS Deployment
+# Usage: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  node1:
+    image: ${REGISTRY}/${IMAGE_NAME}:latest
+    restart: always
+    hostname: node1
+    command: ["--id=node1", "--advertise=${VPS_IP}", "--http=18080", "--grpc=19090", "--gossip=17070", "--seeds=node2:17070,node3:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    ports:
+      - "18080:18080"
+      - "19090:19090"
+      - "17070:17070/udp"
+    volumes:
+      - node1_data:/data
+    environment:
+      - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
+
+  node2:
+    image: ${REGISTRY}/${IMAGE_NAME}:latest
+    restart: always
+    hostname: node2
+    command: ["--id=node2", "--advertise=${VPS_IP}", "--http=18081", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node3:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    ports:
+      - "18081:18081"
+      - "19091:19090"
+      - "17071:17070/udp"
+    volumes:
+      - node2_data:/data
+    environment:
+      - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
+
+  node3:
+    image: ${REGISTRY}/${IMAGE_NAME}:latest
+    restart: always
+    hostname: node3
+    command: ["--id=node3", "--advertise=${VPS_IP}", "--http=18082", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    ports:
+      - "18082:18082"
+      - "19092:19090"
+      - "17072:17070/udp"
+    volumes:
+      - node3_data:/data
+    environment:
+      - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
+
+volumes:
+  node1_data:
+  node2_data:
+  node3_data:

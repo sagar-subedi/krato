@@ -14,9 +14,9 @@ wrk.body = "benchmark-payload-data"
 wrk.headers["Content-Type"] = "application/octet-stream"
 EOF
 
-wrk -t4 -c100 -d10s -s /tmp/post.lua http://localhost:8080/keys/benchkey
+wrk -t4 -c100 -d10s -s /tmp/post.lua http://localhost:18080/keys/benchkey
 
 echo "--- Reading Data Throughput ---"
-wrk -t4 -c100 -d10s http://localhost:8080/keys/benchkey
+wrk -t4 -c100 -d10s http://localhost:18080/keys/benchkey
 
 echo "Done!"

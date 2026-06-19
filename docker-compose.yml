@@ -6,11 +6,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     hostname: node1
-    command: ["--id=node1", "--advertise=node1", "--http=8080", "--grpc=9090", "--gossip=7070", "--seeds=node2:7070,node3:7070,node4:7070,node5:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node1", "--advertise=node1", "--http=18080", "--grpc=19090", "--gossip=17070", "--seeds=node2:17070,node3:17070,node4:17070,node5:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
     ports:
-      - "8080:8080"
-      - "9090:9090"
-      - "7070:7070/udp"
+      - "18080:18080"
+      - "19090:19090"
+      - "17070:17070/udp"
     volumes:
       - node1_data:/data
     environment:
@@ -21,11 +21,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     hostname: node2
-    command: ["--id=node2", "--advertise=node2", "--http=8081", "--grpc=9090", "--gossip=7070", "--seeds=node1:7070,node3:7070,node4:7070,node5:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node2", "--advertise=node2", "--http=18081", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node3:17070,node4:17070,node5:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
     ports:
-      - "8081:8081"
-      - "9091:9090"
-      - "7071:7070/udp"
+      - "18081:18081"
+      - "19091:19090"
+      - "17071:17070/udp"
     volumes:
       - node2_data:/data
     environment:
@@ -36,11 +36,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     hostname: node3
-    command: ["--id=node3", "--advertise=node3", "--http=8082", "--grpc=9090", "--gossip=7070", "--seeds=node1:7070,node2:7070,node4:7070,node5:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node3", "--advertise=node3", "--http=18082", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node4:17070,node5:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
     ports:
-      - "8082:8082"
-      - "9092:9090"
-      - "7072:7070/udp"
+      - "18082:18082"
+      - "19092:19090"
+      - "17072:17070/udp"
     volumes:
       - node3_data:/data
     environment:
@@ -51,11 +51,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     hostname: node4
-    command: ["--id=node4", "--advertise=node4", "--http=8083", "--grpc=9090", "--gossip=7070", "--seeds=node1:7070,node2:7070,node3:7070,node5:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node4", "--advertise=node4", "--http=18083", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node3:17070,node5:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
     ports:
-      - "8085:8083"
-      - "9093:9090"
-      - "7073:7070/udp"
+      - "18085:18083"
+      - "19093:19090"
+      - "17073:17070/udp"
     volumes:
       - node4_data:/data
     environment:
@@ -66,11 +66,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     hostname: node5
-    command: ["--id=node5", "--advertise=node5", "--http=8084", "--grpc=9090", "--gossip=7070", "--seeds=node1:7070,node2:7070,node3:7070,node4:7070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node5", "--advertise=node5", "--http=18084", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node3:17070,node4:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
     ports:
-      - "8086:8084"
-      - "9094:9090"
-      - "7074:7070/udp"
+      - "18086:18084"
+      - "19094:19090"
+      - "17074:17070/udp"
     volumes:
       - node5_data:/data
     environment:

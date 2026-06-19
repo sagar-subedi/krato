@@ -7,7 +7,7 @@ Welcome to Krato! Krato is a high-performance distributed key-value database.
 ### Starting the Node
 Ensure you have built the source layout directly. Start an instance of the storage node locally via:
 ```bash
-./bin/node --port=8080
+./bin/node --http=18080
 ```
 This automatically scaffolds an underlying `krato.db` and matching write-ahead log (`krato.wal`) within the local execution directory.
 
@@ -16,7 +16,7 @@ You can easily spin up a 3-node localized cluster utilizing Docker Compose.
 ```bash
 docker-compose up --build
 ```
-Krato instances will natively bind and share network limits internally resolving nodes automatically targeting HTTP ports `8080`, `8081` and `8082`.
+Krato instances will natively bind and share network limits internally resolving nodes automatically targeting HTTP ports `18080`, `18081` and `18082`.
 
 ### CLI Client Usage
 

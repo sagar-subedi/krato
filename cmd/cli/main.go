@@ -88,7 +88,7 @@ var deleteCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&apiURL, "api", "http://localhost:8080", "Krato API URL")
+	rootCmd.PersistentFlags().StringVar(&apiURL, "api", "http://localhost:18080", "Krato API URL")
 	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(setCmd)
 	rootCmd.AddCommand(deleteCmd)
