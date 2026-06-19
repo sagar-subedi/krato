@@ -7,7 +7,15 @@ service NodeService {
   rpc Get(GetRequest) returns (GetResponse);
   rpc Set(SetRequest) returns (SetResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc Keys(KeysRequest) returns (KeysResponse);
   rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message KeysRequest {
+}
+
+message KeysResponse {
+  repeated string keys = 1;
 }
 
 message GetRequest {

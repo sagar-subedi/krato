@@ -12,9 +12,10 @@ interface HashRingProps {
   nodes: { ID: string; Address: string }[];
   activeOp?: KratoEvent | null;
   nodeEvent?: KratoEvent | null;
+  onSelectNode?: (id: string) => void;
 }
 
-const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [], activeOp, nodeEvent }) => {
+const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [], activeOp, nodeEvent, onSelectNode }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -96,7 +97,11 @@ const HashRing: React.FC<HashRingProps> = ({ ringData = {}, nodes = [], activeOp
       const y = lr * Math.sin(angle);
       nodePositions[node.ID] = { x, y, angle };
 
-      const ng = g.append('g').attr('transform', `translate(${x},${y})`).attr('id', `node-group-${node.ID}`);
+      const ng = g.append('g')
+        .attr('transform', `translate(${x},${y})`)
+        .attr('id', `node-group-${node.ID}`)
+        .style('cursor', 'pointer')
+        .on('click', () => onSelectNode?.(node.ID));
 
       ng.append('circle')
         .attr('r', 14)

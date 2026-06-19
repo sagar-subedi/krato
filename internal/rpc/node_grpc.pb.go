@@ -22,6 +22,7 @@ const (
 	NodeService_Get_FullMethodName    = "/rpc.NodeService/Get"
 	NodeService_Set_FullMethodName    = "/rpc.NodeService/Set"
 	NodeService_Delete_FullMethodName = "/rpc.NodeService/Delete"
+	NodeService_Keys_FullMethodName   = "/rpc.NodeService/Keys"
 	NodeService_Ping_FullMethodName   = "/rpc.NodeService/Ping"
 )
 
@@ -32,6 +33,7 @@ type NodeServiceClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	Keys(ctx context.Context, in *KeysRequest, opts ...grpc.CallOption) (*KeysResponse, error)
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 }
 
@@ -73,6 +75,16 @@ func (c *nodeServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts 
 	return out, nil
 }
 
+func (c *nodeServiceClient) Keys(ctx context.Context, in *KeysRequest, opts ...grpc.CallOption) (*KeysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(KeysResponse)
+	err := c.cc.Invoke(ctx, NodeService_Keys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeServiceClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PingResponse)
@@ -90,6 +102,7 @@ type NodeServiceServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Set(context.Context, *SetRequest) (*SetResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	Keys(context.Context, *KeysRequest) (*KeysResponse, error)
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	mustEmbedUnimplementedNodeServiceServer()
 }
@@ -109,6 +122,9 @@ func (UnimplementedNodeServiceServer) Set(context.Context, *SetRequest) (*SetRes
 }
 func (UnimplementedNodeServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedNodeServiceServer) Keys(context.Context, *KeysRequest) (*KeysResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Keys not implemented")
 }
 func (UnimplementedNodeServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Ping not implemented")
@@ -188,6 +204,24 @@ func _NodeService_Delete_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeService_Keys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServiceServer).Keys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeService_Keys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServiceServer).Keys(ctx, req.(*KeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _NodeService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PingRequest)
 	if err := dec(in); err != nil {
@@ -224,6 +258,10 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Delete",
 			Handler:    _NodeService_Delete_Handler,
+		},
+		{
+			MethodName: "Keys",
+			Handler:    _NodeService_Keys_Handler,
 		},
 		{
 			MethodName: "Ping",

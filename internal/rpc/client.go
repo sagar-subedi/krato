@@ -58,3 +58,11 @@ func (c *Client) Ping(ctx context.Context, sourceID string) (string, error) {
 	}
 	return res.NodeId, nil
 }
+
+func (c *Client) Keys(ctx context.Context) ([]string, error) {
+	res, err := c.client.Keys(ctx, &KeysRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return res.Keys, nil
+}

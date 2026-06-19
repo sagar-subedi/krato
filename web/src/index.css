@@ -3,14 +3,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @theme {
-  --color-background: #040405;
-  --color-surface: #0c0c0f;
-  --color-primary: #6366f1;
+  --color-background: #09090b;
+  --color-surface: #121217;
+  --color-board: #18181b;
+  --color-primary: #3b82f6;
   --color-secondary: #10b981;
-  --color-accent: #8b5cf6;
+  --color-accent: #f59e0b;
   --color-error: #ef4444;
-  --color-text: #ffffff;
-  --color-text-dim: #94a3b8;
+  --color-text: #fafafa;
+  --color-text-dim: #71717a;
+  --color-border: rgba(255, 255, 255, 0.06);
 }
 
 :root {
@@ -22,61 +24,167 @@ body {
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   margin: 0;
-  overflow-x: hidden;
+  overflow: hidden;
   font-family: 'Inter', system-ui, sans-serif;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
+    radial-gradient(circle at 50% -20%, rgba(59, 130, 246, 0.05), transparent),
+    radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.02), transparent);
   background-attachment: fixed;
 }
 
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: repeat(12, 1fr);
+  gap: 1rem;
+  height: 100%;
+}
+
+.bento-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bento-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #15151c;
+}
+
+.glass-panel {
+  background: rgba(18, 18, 23, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+}
+
+/* New Layout & Components for Decluttering */
+
+.hero-container {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 1rem;
+  padding: 1rem 1.5rem 5.5rem 1.5rem; /* bottom pad clears dock */
+  overflow: hidden;
+}
+
+.action-dock {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(18, 18, 23, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  z-index: 50;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.dock-item {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 99px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: all 0.2s ease;
+  color: var(--color-text-dim);
+  border: 1px solid transparent;
+}
+
+.dock-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  border-color: var(--color-border);
+}
+
+.dock-item.active {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.dock-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Modal System */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 9, 11, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 2rem;
+  width: 90%;
+  max-width: 800px;
+  max-height: 85vh;
+  overflow: hidden;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6);
+  animation: modalScale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalScale {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Typography refinements */
 h1, h2, h3, .font-heading {
   font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.02em;
 }
 
-code, pre, .font-mono {
+.metric-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-dim);
+}
+
+.metric-value {
   font-family: 'JetBrains Mono', monospace;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.05em;
 }
 
-.glass {
-  background: rgba(12, 12, 15, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+/* Transitions */
+.fade-in {
+  animation: fadeIn 0.4s ease-out;
 }
 
-.glass-bright {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.glass-accent {
-  background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-}
-
-.glow-primary {
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
-}
-
-.glow-secondary {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-}
-
-.animate-glow {
-  animation: glow 4s infinite alternate;
-}
-
-@keyframes glow {
-  from { box-shadow: 0 0 10px rgba(99, 102, 241, 0.1); }
-  to { box-shadow: 0 0 25px rgba(99, 102, 241, 0.3); }
-}
-
-/* Custom Scrollbar */
+/* Custom Scrollbar (Stealthy) */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -84,30 +192,30 @@ code, pre, .font-mono {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
 }
 
-.nav-link {
-  position: relative;
-  transition: all 0.3s ease;
+/* Sidebar & Explorer */
+.explorer-item {
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
-.nav-link:after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 0;
-  width: 0;
-  height: 2px;
-  background: var(--color-primary);
-  transition: width 0.3s ease;
+.explorer-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--color-border);
 }
 
-.nav-link:hover:after {
-  width: 100%;
+.explorer-item.active {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: var(--color-primary);
 }

@@ -1,14 +1,16 @@
-FROM golang:1.25-alpine AS builder
+# Use a locally available alpine-based image to bypass network issues
+FROM redis:7.4.1-alpine
 
 WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN go build -o /app/node ./cmd/node
+# Copy the locally built binary and web assets
+COPY bin/node /app/node
+COPY web/dist /app/web/dist
 
-FROM alpine:latest
-WORKDIR /app
-COPY --from=builder /app/node /app/node
-COPY --from=builder /app/web/dist /app/web/dist
+# Expose ports
+EXPOSE 8080 9090 7070
+
+# Volume for persistence
 VOLUME ["/data"]
+
+# Override Redis entrypoint/cmd
 ENTRYPOINT ["/app/node"]

@@ -64,12 +64,14 @@ func (s *Server) routes() {
 
 	// New Observability & UI API
 	s.mux.HandleFunc("/ws", s.handleWS)
-	s.mux.HandleFunc("/api/cluster/ring", s.handleGetRing)
 	s.mux.HandleFunc("/api/nodes", s.handleGetNodes)
+	s.mux.HandleFunc("/api/cluster/ring", s.handleGetRing)
+	s.mux.HandleFunc("/api/cluster/keys", s.handleGetClusterKeys)
 	s.mux.HandleFunc("/api/events/history", s.handleEventHistory)
 	s.mux.HandleFunc("/api/chaos", s.handleChaos)
 	s.mux.HandleFunc("/api/ai/chat", s.handleAIChat)
 	s.mux.HandleFunc("/api/keys", s.handleAPIKeys)
+	s.mux.HandleFunc("/api/node/", s.handleNodeDetails)
 	s.mux.HandleFunc("/api/debug/gossip", s.handleDebugGossip)
 
 	// Serve Static Files
@@ -257,6 +259,15 @@ func (s *Server) handleGetRing(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ringState)
 }
 
+func (s *Server) handleGetClusterKeys(w http.ResponseWriter, r *http.Request) {
+	keys, err := s.coord.ListClusterKeys(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(keys)
+}
+
 func (s *Server) handleGetNodes(w http.ResponseWriter, r *http.Request) {
 	nodes := s.coord.Ring().GetAllNodes()
 	metrics := s.metrics.GetSnapshot()
@@ -348,4 +359,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) handleDebugGossip(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(s.coord.GetGossipState())
+}
+
+func (s *Server) handleNodeDetails(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.URL.Path[len("/api/node/"):]
+	if nodeID == "" {
+		http.Error(w, "node id required", http.StatusBadRequest)
+		return
+	}
+	details := s.coord.GetNodeDetails(nodeID)
+	json.NewEncoder(w).Encode(details)
 }

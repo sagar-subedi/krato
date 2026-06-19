@@ -124,6 +124,10 @@ func (e *Engine) Count() (int, error) {
 	return e.db.Count()
 }
 
+func (e *Engine) Stats() map[string]interface{} {
+	return e.db.Stats()
+}
+
 func (e *Engine) Close() error {
 	close(e.quit)
 	e.wal.Close()

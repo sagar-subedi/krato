@@ -48,3 +48,15 @@ export interface ClusterState {
 export interface RingSnapshot {
   [hash: string]: string;
 }
+
+export interface NodeDetail {
+  id: string;
+  found: boolean;
+  is_self: boolean;
+  address?: string;
+  status: string;
+  stats?: {
+    key_count: number;
+    db_size: number;
+  };
+}

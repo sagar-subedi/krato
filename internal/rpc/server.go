@@ -55,3 +55,17 @@ func (s *NodeServer) Delete(ctx context.Context, req *DeleteRequest) (*DeleteRes
 func (s *NodeServer) Ping(ctx context.Context, req *PingRequest) (*PingResponse, error) {
 	return &PingResponse{NodeId: s.nodeID}, nil
 }
+
+func (s *NodeServer) Keys(ctx context.Context, req *KeysRequest) (*KeysResponse, error) {
+	results, err := s.engine.Scan([]byte{})
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(results))
+	for k := range results {
+		keys = append(keys, k)
+	}
+
+	return &KeysResponse{Keys: keys}, nil
+}

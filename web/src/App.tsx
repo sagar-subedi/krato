@@ -1,21 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Activity, 
-  Database, 
-  Clock, 
-  Zap, 
-  Trash2, 
-  AlertTriangle,
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Activity,
+  Database,
+  Clock,
+  Trash2,
   Play,
   RotateCcw,
-  LayoutDashboard,
-  MessageSquare,
-  ShieldCheck
+  Layers,
+  AlertTriangle,
+  X,
+  Search,
+  Plus,
+  ArrowRight,
+  Loader2,
 } from 'lucide-react';
 import HashRing from './components/HashRing';
 import EventLog from './components/EventLog';
 import AIChat from './components/AIChat';
-import KVPanel from './components/KVPanel';
+import NodeExplorer from './components/NodeExplorer';
 import type { KratoEvent, ClusterState, RingSnapshot } from './types';
 
 const App: React.FC = () => {
@@ -25,268 +27,373 @@ const App: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [activeKeyOp, setActiveKeyOp] = useState<KratoEvent | null>(null);
   const [activeNodeEvent, setActiveNodeEvent] = useState<KratoEvent | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
+  const [clusterKeys, setClusterKeys] = useState<Record<string, string[]>>({});
+  const [activeModal, setActiveModal] = useState<'explorer' | 'chaos' | null>(null);
+
+  // Inline KV state
+  const [kvMode, setKvMode] = useState<'set' | 'get'>('set');
+  const [kvKey, setKvKey] = useState('');
+  const [kvValue, setKvValue] = useState('');
+  const [kvResult, setKvResult] = useState<{ value: string | null; error?: string } | null>(null);
+  const [kvLoading, setKvLoading] = useState(false);
+  const kvKeyRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
-
-    ws.onopen = () => {
-      setIsConnected(true);
-      fetchInitialData();
-    };
-
+    ws.onopen = () => { setIsConnected(true); fetchInitialData(); };
     ws.onmessage = (e) => {
       const event = JSON.parse(e.data) as KratoEvent;
       setEvents(prev => [event, ...prev.slice(0, 49)]);
-      
-      if (event.type === 'key_op') {
-        setActiveKeyOp(event);
-      }
-      
-      if (event.type === 'node_status') {
-        setActiveNodeEvent(event);
-      }
-
-      // Real-time metric updates if possible from event data
-      if (['gossip', 'node_status', 'key_op'].includes(event.type)) {
-        fetchInitialData();
-      }
+      if (event.type === 'key_op') setActiveKeyOp(event);
+      if (event.type === 'node_status') setActiveNodeEvent(event);
+      if (['gossip', 'node_status', 'key_op'].includes(event.type)) fetchInitialData();
     };
-
     ws.onclose = () => setIsConnected(false);
-
     return () => ws.close();
   }, []);
 
   const fetchInitialData = async () => {
     try {
-      const ringRes = await fetch('/api/cluster/ring');
-      const ringData = await ringRes.json();
-      setRingData(ringData);
-
-      const nodesRes = await fetch('/api/nodes');
-      const nodesData = (await nodesRes.json()) as ClusterState;
-      setCluster(nodesData);
+      const [ringRes, nodesRes, keysRes] = await Promise.all([
+        fetch('/api/cluster/ring'),
+        fetch('/api/nodes'),
+        fetch('/api/cluster/keys'),
+      ]);
+      if (ringRes.ok) setRingData(await ringRes.json());
+      if (nodesRes.ok) {
+        const nodesData = (await nodesRes.json()) as ClusterState;
+        setCluster(nodesData);
+        if (!selectedNodeId && nodesData.nodes.length > 0) {
+          setSelectedNodeId(nodesData.nodes[0].ID);
+        }
+      }
+      if (keysRes.ok) setClusterKeys(await keysRes.json());
     } catch (err) {
-      console.error("Failed to fetch cluster data", err);
+      console.error('Failed to fetch cluster data', err);
     }
   };
 
-  const handleSet = async (key: string, value: string) => {
-    const res = await fetch('/api/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, value, consistency: 'quorum' })
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      throw new Error(msg);
+  // Inline Set
+  const handleSet = async () => {
+    if (!kvKey || !kvValue) return;
+    setKvLoading(true);
+    setKvResult(null);
+    try {
+      const res = await fetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: kvKey, value: kvValue, consistency: 'quorum' }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setKvResult({ value: '✓ Written to cluster' });
+      setKvValue('');
+      fetchInitialData();
+    } catch (err: any) {
+      setKvResult({ value: null, error: err.message });
+    } finally {
+      setKvLoading(false);
     }
-    // Optimization: immediate fetch or wait for WS event
-    fetchInitialData();
   };
 
-  const handleGet = async (key: string): Promise<string | null> => {
-    const res = await fetch(`/api/keys?key=${key}&consistency=quorum`);
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      const msg = await res.text();
-      throw new Error(msg);
+  // Inline Get
+  const handleGet = async () => {
+    if (!kvKey) return;
+    setKvLoading(true);
+    setKvResult(null);
+    try {
+      const res = await fetch(`/api/keys?key=${encodeURIComponent(kvKey)}&consistency=quorum`);
+      if (res.status === 404) { setKvResult({ value: null }); return; }
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setKvResult({ value: data.value });
+    } catch (err: any) {
+      setKvResult({ value: null, error: err.message });
+    } finally {
+      setKvLoading(false);
     }
-    const data = await res.json();
-    return data.value;
   };
 
   const handleChaos = async (latency: string, killed: boolean) => {
     await fetch('/api/chaos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latency, killed })
+      body: JSON.stringify({ latency, killed }),
     });
     fetchInitialData();
   };
 
+  const closeModal = () => setActiveModal(null);
+
   return (
-    <div className="min-h-screen bg-background flex flex-col max-w-[1920px] mx-auto overflow-hidden h-screen text-text">
-      {/* Header */}
-      <header className="h-16 glass flex items-center justify-between px-8 z-10">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center glow-primary">
-            <Database className="text-white" size={20} />
+    <div className="flex flex-col h-screen bg-background text-text overflow-hidden">
+      {/* ── Header ── */}
+      <header className="flex items-center justify-between px-8 h-14 shrink-0 border-b border-white/[0.06]">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+            <Database size={16} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold font-heading tracking-tight">KRATO <span className="text-[10px] text-primary/60 ml-1 font-mono">v1.2.0</span></h1>
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-text-dim">
-              <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-secondary animate-pulse' : 'bg-error'}`} />
-              {isConnected ? 'Network Synchronized' : 'System Offline'}
+            <div className="text-sm font-bold tracking-tight leading-none">KRATO</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-secondary' : 'bg-error'} animate-pulse`} />
+              <span className="text-[8px] font-bold uppercase tracking-wider text-text-dim">
+                {isConnected ? 'Live' : 'Reconnecting'}
+              </span>
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-6">
-          <nav className="flex items-center gap-6">
-            <a href="#" className="text-xs font-bold font-heading text-primary nav-link flex items-center gap-2">
-              <LayoutDashboard size={14} /> Dashboard
-            </a>
-            <a href="#" className="text-xs font-bold font-heading text-text-dim hover:text-white nav-link flex items-center gap-2 transition-colors">
-              <ShieldCheck size={14} /> Security
-            </a>
-            <a href="#" className="text-xs font-bold font-heading text-text-dim hover:text-white nav-link flex items-center gap-2 transition-colors">
-              <MessageSquare size={14} /> Reports
-            </a>
-          </nav>
-          <div className="h-6 w-px bg-white/10 mx-2" />
-          <div className="flex items-center gap-3">
-             <div className="text-right hidden sm:block">
-               <div className="text-[10px] font-bold text-white">Sagar Subedi</div>
-               <div className="text-[9px] text-primary">Cluster Admin</div>
-             </div>
-             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-accent" />
-          </div>
+          <CompactMetric label="Throughput" value={`${cluster?.metrics?.request_count ?? 0}`} unit="rps" icon={<Activity size={12} />} />
+          <CompactMetric label="P99" value={cluster?.metrics?.p99 ? `${(cluster.metrics.p99 / 1e6).toFixed(1)}` : '—'} unit="ms" icon={<Clock size={12} />} />
+          <CompactMetric label="Nodes" value={`${cluster?.nodes?.length ?? 0}`} unit="up" icon={<Layers size={12} />} />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveModal(activeModal === 'chaos' ? null : 'chaos')}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
+              activeModal === 'chaos'
+                ? 'bg-error/10 border-error/30 text-error'
+                : 'border-white/5 text-text-dim hover:border-white/10 hover:text-white'
+            }`}
+          >
+            Chaos Lab
+          </button>
+          <button
+            onClick={() => setActiveModal(activeModal === 'explorer' ? null : 'explorer')}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
+              activeModal === 'explorer'
+                ? 'bg-primary/10 border-primary/30 text-primary'
+                : 'border-white/5 text-text-dim hover:border-white/10 hover:text-white'
+            }`}
+          >
+            Explorer
+          </button>
         </div>
       </header>
 
-      <main className="flex-1 p-6 grid grid-cols-12 gap-6 overflow-hidden">
-        {/* Left Column: Metrics & Topology */}
-        <div className="col-span-3 space-y-6 flex flex-col overflow-hidden">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <StatCard 
-              icon={<Zap className="text-yellow-400" size={16} />} 
-              label="TOTAL OPERATIONS" 
-              value={cluster?.metrics.request_count.toString() || '0'} 
-              color="yellow"
+      {/* ── Main two-column hero ── */}
+      <main className="flex-1 overflow-hidden hero-container">
+
+        {/* Left: Ring + Inline KV strip */}
+        <div className="flex flex-col overflow-hidden gap-3 min-h-0">
+          {/* Hash Ring card */}
+          <div className="bento-card flex-1 flex flex-col items-center justify-center relative overflow-hidden min-h-0">
+            <div className="absolute top-5 left-5 z-10 space-y-0.5">
+              <div className="metric-label">Consistency Topology</div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                <span className="text-[9px] font-mono text-white/40">
+                  {Object.keys(ringData).length} vnodes · {cluster?.nodes?.length ?? 0} shards
+                </span>
+              </div>
+            </div>
+
+            <HashRing
+              ringData={ringData}
+              nodes={cluster?.nodes || []}
+              activeOp={activeKeyOp}
+              nodeEvent={activeNodeEvent}
+              onSelectNode={(id) => {
+                setSelectedNodeId(id);
+                setActiveModal('explorer');
+              }}
             />
-            <StatCard 
-              icon={<Clock className="text-blue-400" size={16} />} 
-              label="LATENCY P99" 
-              value={`${cluster?.metrics.p99 ? (cluster.metrics.p99 / 1e6).toFixed(2) : '0'}ms`} 
-              color="blue"
-            />
-            <StatCard 
-              icon={<Database className="text-green-400" size={16} />} 
-              label="ACTIVE KEYS" 
-              value={cluster?.metrics.key_count.toString() || '0'} 
-              color="green"
-            />
-            <StatCard 
-              icon={<Activity className="text-purple-400" size={16} />} 
-              label="NODE COUNT" 
-              value={cluster?.nodes.length.toString() || '0'} 
-              color="purple"
-            />
+
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] text-white/15 font-bold uppercase tracking-widest whitespace-nowrap">
+              Click any node to explore · Keys flash on write/read
+            </div>
           </div>
 
-          {/* Node Explorer */}
-          <div className="flex-1 glass rounded-2xl p-5 overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-dim font-heading">Cluster Topology</h3>
-              <span className="bg-secondary/10 text-secondary text-[8px] px-2 py-0.5 rounded-full font-bold">HEALTHY</span>
-            </div>
-            <div className="space-y-3 overflow-y-auto pr-1 custom-scrollbar">
-              {cluster?.nodes.map(n => (
-                <div key={n.ID} className="p-4 rounded-xl glass-bright border border-white/5 hover:border-white/10 transition-colors group">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                       <div className="w-2.5 h-2.5 rounded-full bg-secondary shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                       <div>
-                        <div className="text-[12px] font-bold group-hover:text-primary transition-colors">{n.ID}</div>
-                        <div className="text-[9px] text-text-dim font-mono">{n.Address}</div>
-                       </div>
-                    </div>
-                    <div className="text-[9px] font-bold font-mono text-secondary px-2 py-1 bg-secondary/5 rounded border border-secondary/10">ACTIVE</div>
-                  </div>
+          {/* Inline KV Input Strip */}
+          <div className="bento-card shrink-0 p-4!">
+            <div className="flex items-center gap-3">
+              {/* Mode Toggle */}
+              <div className="flex bg-black/30 rounded-lg p-0.5 shrink-0">
+                <button
+                  onClick={() => { setKvMode('set'); setKvResult(null); }}
+                  className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${kvMode === 'set' ? 'bg-primary text-white' : 'text-text-dim hover:text-white'}`}
+                >
+                  <Plus size={10} className="inline mr-1" />Set
+                </button>
+                <button
+                  onClick={() => { setKvMode('get'); setKvResult(null); }}
+                  className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${kvMode === 'get' ? 'bg-secondary text-white' : 'text-text-dim hover:text-white'}`}
+                >
+                  <Search size={10} className="inline mr-1" />Get
+                </button>
+              </div>
+
+              {/* Key Input */}
+              <input
+                ref={kvKeyRef}
+                value={kvKey}
+                onChange={e => { setKvKey(e.target.value); setKvResult(null); }}
+                onKeyDown={e => e.key === 'Enter' && (kvMode === 'set' ? handleSet() : handleGet())}
+                placeholder="Key"
+                className="w-36 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-primary/40 transition-colors"
+              />
+
+              {/* Value input (set mode only) */}
+              {kvMode === 'set' && (
+                <input
+                  value={kvValue}
+                  onChange={e => setKvValue(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSet()}
+                  placeholder="Value"
+                  className="flex-1 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-primary/40 transition-colors"
+                />
+              )}
+
+              {/* Result (get mode) */}
+              {kvMode === 'get' && (
+                <div className="flex-1 bg-black/10 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono min-h-[36px] flex items-center">
+                  {kvLoading ? (
+                    <span className="text-text-dim animate-pulse">Querying quorum…</span>
+                  ) : kvResult ? (
+                    kvResult.error ? (
+                      <span className="text-error">{kvResult.error}</span>
+                    ) : kvResult.value === null ? (
+                      <span className="text-text-dim italic">Key not found</span>
+                    ) : (
+                      <span className="text-secondary break-all">{kvResult.value}</span>
+                    )
+                  ) : (
+                    <span className="text-white/15 italic">Result will appear here</span>
+                  )}
                 </div>
-              ))}
-              {(!cluster || cluster.nodes.length === 0) && (
-                <div className="flex-1 flex items-center justify-center text-text-dim text-xs py-10 italic">
-                   Discovering peers...
+              )}
+
+              {/* CTA */}
+              <button
+                onClick={kvMode === 'set' ? handleSet : handleGet}
+                disabled={kvLoading || !kvKey || (kvMode === 'set' && !kvValue)}
+                className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-40 ${
+                  kvMode === 'set' ? 'bg-primary hover:bg-primary/80 text-white' : 'bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20'
+                }`}
+              >
+                {kvLoading ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
+                {kvMode === 'set' ? 'Write' : 'Fetch'}
+              </button>
+
+              {/* Set success result */}
+              {kvMode === 'set' && kvResult && (
+                <div className="text-[10px] font-mono shrink-0">
+                  {kvResult.error ? (
+                    <span className="text-error">{kvResult.error}</span>
+                  ) : (
+                    <span className="text-secondary">{kvResult.value}</span>
+                  )}
                 </div>
               )}
             </div>
           </div>
-
-          {/* Chaos Panel */}
-          <div className="glass p-5 rounded-2xl space-y-4">
-            <div className="flex items-center gap-2 text-error">
-              <AlertTriangle size={16} />
-              <span className="text-[10px] font-bold uppercase tracking-widest font-heading">System Chaos Monitor</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button 
-                onClick={() => handleChaos("500ms", false)}
-                className="p-3 rounded-xl glass-bright border border-white/5 hover:border-error/20 hover:bg-error/5 transition-all flex flex-col items-center gap-2 text-[10px] font-bold"
-              >
-                <Play size={14} className="text-error" />
-                Inject Delay
-              </button>
-              <button 
-                onClick={() => handleChaos("0s", true)}
-                className="p-3 rounded-xl glass-bright border border-white/5 hover:border-error/20 hover:bg-error/5 transition-all flex flex-col items-center gap-2 text-[10px] font-bold"
-              >
-                <Trash2 size={14} className="text-error" />
-                Isolate Node
-              </button>
-              <button 
-                  onClick={() => handleChaos("0s", false)}
-                  className="col-span-2 p-3 rounded-xl glass-bright border border-white/5 hover:border-secondary/20 hover:bg-secondary/5 transition-all flex items-center justify-center gap-2 text-[10px] font-bold"
-                >
-                <RotateCcw size={14} className="text-secondary" />
-                Restore Cluster Equilibrium
-              </button>
-            </div>
-          </div>
         </div>
 
-        {/* Center: Ring & Playground */}
-        <div className="col-span-6 flex flex-col gap-6 h-full overflow-hidden">
-          <div className="glass rounded-3xl p-4 flex-1 relative overflow-hidden flex flex-col items-center justify-center">
-            <div className="absolute top-6 left-6 flex items-center gap-2">
-               <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-               <span className="text-[10px] font-bold tracking-widest text-text-dim uppercase font-heading">Consistent Hash Ring</span>
+        {/* Right: Real-time Event Stream */}
+        <div className="bento-card flex flex-col overflow-hidden p-0! min-h-0">
+          <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
+            <span className="metric-label">System Pulse</span>
+            <div className="flex gap-1 items-center">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-1 h-1 rounded-full bg-secondary" style={{ opacity: 0.3 + i * 0.25 }} />
+              ))}
+              <span className="text-[8px] text-secondary ml-1.5 font-bold uppercase tracking-wider">Live</span>
             </div>
-            <HashRing 
-              ringData={ringData} 
-              nodes={cluster?.nodes || []} 
-              activeOp={activeKeyOp}
-              nodeEvent={activeNodeEvent}
-            />
           </div>
-          
-          <div className="h-2/5 min-h-[300px]">
-             <KVPanel onSet={handleSet} onGet={handleGet} />
+          <div className="flex-1 overflow-hidden">
+            <EventLog events={events} />
           </div>
-        </div>
-
-        {/* Right Sidebar: Events */}
-        <div className="col-span-3 h-full overflow-hidden">
-          <EventLog events={events} />
         </div>
       </main>
-      
+
+      {/* ── Modals ── */}
+      {activeModal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-7 py-5 border-b border-white/[0.06]">
+              <div>
+                <h2 className="text-base font-bold tracking-tight">
+                  {activeModal === 'explorer' && 'Cluster Explorer'}
+                  {activeModal === 'chaos' && 'Chaos Laboratory'}
+                </h2>
+                <p className="text-[10px] text-text-dim mt-0.5">
+                  {activeModal === 'explorer' && 'Browse per-node key distribution and their values'}
+                  {activeModal === 'chaos' && 'Inject failure modes to validate cluster resilience'}
+                </p>
+              </div>
+              <button onClick={closeModal} className="w-9 h-9 rounded-full hover:bg-white/5 flex items-center justify-center transition-colors text-text-dim hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="overflow-hidden" style={{ height: 'calc(85vh - 80px)' }}>
+              {activeModal === 'explorer' && (
+                <NodeExplorer
+                  nodes={cluster?.nodes || []}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={setSelectedNodeId}
+                  clusterKeys={clusterKeys}
+                />
+              )}
+
+              {activeModal === 'chaos' && (
+                <div className="p-8 space-y-8">
+                  <div className="text-center space-y-2 text-text-dim max-w-sm mx-auto">
+                    <AlertTriangle size={26} className="mx-auto text-error/50" />
+                    <p className="text-xs leading-relaxed">
+                      Inject failure modes to observe how Krato maintains consistency and availability under adverse conditions.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <ChaosCard icon={<Play size={20} />} title="Network Delay" desc="Inject 500ms latency" onClick={() => { handleChaos('500ms', false); closeModal(); }} />
+                    <ChaosCard icon={<Trash2 size={20} />} title="Node Partition" desc="Cut node from cluster" danger onClick={() => { handleChaos('0s', true); closeModal(); }} />
+                    <ChaosCard icon={<RotateCcw size={20} />} title="Rebalance" desc="Restore normal operation" onClick={() => { handleChaos('0s', false); closeModal(); }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <AIChat />
     </div>
   );
 };
 
-interface StatCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  color: string;
-}
+/* Sub-components */
 
-const StatCard: React.FC<StatCardProps> = ({ icon, label, value, color }) => (
-  <div className={`glass p-5 rounded-2xl relative overflow-hidden group hover:glow-${color} transition-all duration-500`}>
-    <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:opacity-40 transition-opacity">
-       {icon}
+const CompactMetric: React.FC<{ label: string; value: string; unit: string; icon: React.ReactNode }> = ({ label, value, unit, icon }) => (
+  <div className="flex items-center gap-2">
+    <div className="text-text-dim">{icon}</div>
+    <div>
+      <div className="text-[8px] font-bold text-text-dim uppercase tracking-wider">{label}</div>
+      <div className="text-xs font-mono font-bold leading-none">
+        {value}<span className="text-[9px] text-text-dim ml-0.5 font-normal">{unit}</span>
+      </div>
     </div>
-    <div className="relative z-10 space-y-1">
-      <div className="text-[9px] font-bold uppercase tracking-widest text-text-dim">{label}</div>
-      <div className="text-2xl font-mono font-bold tracking-tight">{value}</div>
-    </div>
-    <div className={`absolute bottom-0 left-0 h-1 bg-${color}-400/20 w-full`} />
   </div>
+);
+
+const ChaosCard: React.FC<{ icon: React.ReactNode; title: string; desc: string; danger?: boolean; onClick: () => void }> = ({ icon, title, desc, danger, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border transition-all ${
+      danger
+        ? 'border-error/20 text-error hover:bg-error/5 hover:border-error/40'
+        : 'border-white/5 text-text-dim hover:bg-white/5 hover:text-white hover:border-white/10'
+    }`}
+  >
+    {icon}
+    <div className="text-center">
+      <div className="text-xs font-bold">{title}</div>
+      <div className="text-[9px] text-text-dim mt-0.5">{desc}</div>
+    </div>
+  </button>
 );
 
 export default App;

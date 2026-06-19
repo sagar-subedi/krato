@@ -24,6 +24,7 @@ type Store interface {
 	Delete(key []byte) error
 	Scan(prefix []byte) (map[string][]byte, error)
 	Count() (int, error)
+	Stats() map[string]interface{}
 	Close() error
 }
 
@@ -165,6 +166,20 @@ func (s *BoltStore) Count() (int, error) {
 		return nil
 	})
 	return count, err
+}
+
+func (s *BoltStore) Stats() map[string]interface{} {
+	stats := make(map[string]interface{})
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bs := tx.Bucket(defaultBucket).Stats()
+		stats["key_count"] = bs.KeyN
+		stats["db_size"] = tx.Size()
+		return nil
+	})
+	if err != nil {
+		stats["error"] = err.Error()
+	}
+	return stats
 }
 
 func (s *BoltStore) Close() error {

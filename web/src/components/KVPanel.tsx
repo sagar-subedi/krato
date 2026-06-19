@@ -43,84 +43,84 @@ const KVPanel: React.FC<KVPanelProps> = ({ onSet, onGet }) => {
   };
 
   return (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid grid-cols-2 gap-4 h-full">
       {/* Set Panel */}
-      <div className="glass p-6 rounded-2xl space-y-4 glow-primary">
-        <div className="flex items-center gap-2 text-primary">
-          <Plus size={18} />
-          <h2 className="text-sm font-bold uppercase tracking-widest">Set Key-Value</h2>
+      <div className="bento-card flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+           <span className="metric-label">Store Fragment</span>
+           <Plus size={14} className="text-primary/50" />
         </div>
-        <div className="space-y-3">
+        <div className="space-y-3 flex-1 flex flex-col justify-center">
           <input 
             type="text" 
             value={setKey}
             onChange={(e) => setSetKey(e.target.value)}
-            placeholder="Key" 
-            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-primary/50 transition-colors"
+            placeholder="Fragment Key" 
+            className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-2.5 text-[11px] font-mono focus:outline-none focus:border-primary/50 transition-colors"
           />
           <textarea 
             value={setValue}
             onChange={(e) => setSetValue(e.target.value)}
-            placeholder="Value (JSON or String)" 
-            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-primary/50 transition-colors h-24 resize-none"
+            placeholder="Payload..." 
+            className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-2.5 text-[11px] font-mono focus:outline-none focus:border-primary/50 transition-colors h-20 resize-none"
           />
           <button 
             onClick={handleSet}
             disabled={isSetting}
-            className="w-full bg-primary hover:bg-primary/80 disabled:opacity-50 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+            className="w-full bg-primary hover:bg-primary/80 disabled:opacity-50 py-2.5 rounded-xl font-bold text-[11px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/10"
           >
-            {isSetting ? 'Processing...' : 'Write to Cluster'}
-            {!isSetting && <ArrowRight size={16} />}
+            {isSetting ? 'Replicating...' : 'Commit to Cluster'}
+            {!isSetting && <ArrowRight size={14} />}
           </button>
         </div>
       </div>
 
       {/* Get Panel */}
-      <div className="glass p-6 rounded-2xl space-y-4">
-        <div className="flex items-center gap-2 text-secondary">
-          <Search size={18} />
-          <h2 className="text-sm font-bold uppercase tracking-widest">Get Value</h2>
+      <div className="bento-card flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+           <span className="metric-label">Direct Query</span>
+           <Search size={14} className="text-secondary/50" />
         </div>
-        <div className="space-y-3">
+        <div className="space-y-3 flex-1 flex flex-col">
           <div className="flex gap-2">
             <input 
               type="text" 
               value={getKey}
               onChange={(e) => setGetKey(e.target.value)}
-              placeholder="Enter key..." 
-              className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-secondary/50 transition-colors"
+              placeholder="Query Key" 
+              className="flex-1 bg-black/20 border border-white/5 rounded-xl px-4 py-2.5 text-[11px] font-mono focus:outline-none focus:border-secondary/50 transition-colors"
               onKeyPress={(e) => e.key === 'Enter' && handleGet()}
             />
             <button 
               onClick={handleGet}
               disabled={isGetting}
-              className="bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/30 px-6 rounded-xl font-bold text-sm transition-all"
+              className="bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 px-4 rounded-xl font-bold text-[10px] transition-all"
             >
               Fetch
             </button>
           </div>
 
-          <div className="flex-1 min-h-[148px] bg-black/40 border border-white/5 rounded-xl p-4 flex flex-col font-mono">
+          <div className="flex-1 min-h-0 bg-black/20 border border-white/5 rounded-xl p-3 flex flex-col font-mono overflow-hidden">
             {isGetting ? (
-              <div className="flex-1 flex items-center justify-center text-gray-500 animate-pulse text-xs">
-                Querying nodes...
+              <div className="flex-1 flex items-center justify-center text-text-dim animate-pulse text-[10px]">
+                Quorum consensus...
               </div>
             ) : getResult ? (
-              <div className="space-y-2">
-                <div className="text-[10px] uppercase text-gray-500 font-bold">Result</div>
+              <div className="h-full flex flex-col">
+                <div className="text-[8px] uppercase text-text-dim font-bold mb-1">Result</div>
                 {getResult.error ? (
-                  <div className="text-error text-xs">{getResult.error}</div>
+                  <div className="text-error text-[10px]">{getResult.error}</div>
                 ) : getResult.value === null ? (
-                  <div className="text-gray-500 text-xs italic">Key not found in any replica</div>
+                  <div className="text-text-dim text-[10px] italic">Not found</div>
                 ) : (
-                  <div className="text-secondary text-xs break-all bg-secondary/5 p-2 rounded border border-secondary/10 overflow-auto max-h-24">
+                  <div className="text-secondary text-[10px] break-all p-2 rounded bg-secondary/5 border border-secondary/10 overflow-auto custom-scrollbar">
                     {getResult.value}
                   </div>
                 )}
               </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-600 italic text-xs">
-                Enter a key to perform a quorum read
+              <div className="flex-1 flex items-center justify-center text-text-dim italic text-[10px] opacity-30 text-center">
+                Consensus read across replicas
               </div>
             )}
           </div>

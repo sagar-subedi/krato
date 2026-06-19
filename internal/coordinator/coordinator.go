@@ -428,6 +428,87 @@ func (c *Coordinator) Delete(ctx context.Context, key string, consistency string
 	return nil
 }
 
+// ListClusterKeys queries all active nodes in the ring for their local keys.
+// Returns a map of nodeID -> []string of keys.
+func (c *Coordinator) ListClusterKeys(ctx context.Context) (map[string][]string, error) {
+	nodes := c.ring.GetAllNodes()
+	var mu sync.Mutex
+	clusterKeys := make(map[string][]string)
+	var wg sync.WaitGroup
+
+	for _, n := range nodes {
+		wg.Add(1)
+		go func(node ring.Node) {
+			defer wg.Done()
+			var keys []string
+			var err error
+
+			if node.ID == c.nodeID {
+				results, scanErr := c.engine.Scan([]byte{})
+				if scanErr == nil {
+					for k := range results {
+						keys = append(keys, k)
+					}
+				}
+			} else {
+				client, ok := c.getClient(node)
+				if ok {
+					keys, err = client.Keys(ctx)
+				}
+			}
+
+			if err == nil {
+				mu.Lock()
+				clusterKeys[node.ID] = keys
+				mu.Unlock()
+			}
+		}(n)
+	}
+
+	wg.Wait()
+	return clusterKeys, nil
+}
+
+// GetNodeDetails returns comprehensive information about a specific node.
+func (c *Coordinator) GetNodeDetails(nodeID string) map[string]interface{} {
+	nodes := c.ring.GetAllNodes()
+	var targeted ring.Node
+	found := false
+	for _, n := range nodes {
+		if n.ID == nodeID {
+			targeted = n
+			found = true
+			break
+		}
+	}
+
+	details := map[string]interface{}{
+		"id":      nodeID,
+		"found":   found,
+		"is_self": nodeID == c.nodeID,
+	}
+
+	if found {
+		details["address"] = targeted.Address
+	}
+
+	if nodeID == c.nodeID {
+		details["stats"] = c.engine.Stats()
+		details["status"] = "ACTIVE"
+		if c.chaos.Killed {
+			details["status"] = "KILLED"
+		}
+	} else {
+		// For peers, we currently only know what's in the ring and gossip
+		details["status"] = "UNKNOWN"
+		if m, ok := c.GetGossipState()[nodeID]; ok {
+			details["status"] = string(m.State)
+		}
+	}
+
+	return details
+}
+
 // RepairKey pushes a key's value and clock to a specific peer via gRPC.
 // Used by the anti-entropy background process.
 func (c *Coordinator) RepairKey(ctx context.Context, nodeID, key string, value []byte, clock store.VectorClock) {
