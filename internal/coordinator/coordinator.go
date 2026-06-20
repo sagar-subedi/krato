@@ -18,6 +18,7 @@ import (
 type Gossiper interface {
 	SetEnabled(enabled bool)
 	GetFullState() map[string]gossip.Member
+	BroadcastEvent(event observe.Event)
 }
 
 // Coordinator handles distributed quorum reads, writes, and deletes across the
@@ -336,15 +337,24 @@ func (c *Coordinator) Write(ctx context.Context, key string, value []byte, consi
 
 	// Publish success event for real-time UI updates
 	keyHash, replicaIDs := c.ring.GetKeyInfo(key, c.rf)
-	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
-		"op":           "write",
-		"key":          key,
-		"key_hash":     keyHash,
-		"replica_nodes": replicaIDs,
-		"consistency":  consistency,
-		"nodes":        len(nodes),
-		"success":      true,
-	})
+	event := observe.Event{
+		Type:      observe.EventKeyOp,
+		NodeID:    c.nodeID,
+		Timestamp: time.Now(),
+		Metadata: map[string]interface{}{
+			"op":           "write",
+			"key":          key,
+			"key_hash":     keyHash,
+			"replica_nodes": replicaIDs,
+			"consistency":  consistency,
+			"nodes":        len(nodes),
+			"success":      true,
+		},
+	}
+	c.events.PublishEvent(event)
+	if c.gossip != nil {
+		c.gossip.BroadcastEvent(event)
+	}
 
 	// Update approximate key count in metrics
 	if keys, err := c.engine.Count(); err == nil {
@@ -410,15 +420,24 @@ func (c *Coordinator) Delete(ctx context.Context, key string, consistency string
 
 	// Publish success event for real-time UI updates
 	keyHash, replicaIDs := c.ring.GetKeyInfo(key, c.rf)
-	c.events.Publish(c.nodeID, observe.EventKeyOp, map[string]interface{}{
-		"op":           "delete",
-		"key":          key,
-		"key_hash":     keyHash,
-		"replica_nodes": replicaIDs,
-		"consistency":  consistency,
-		"nodes":        len(nodes),
-		"success":      true,
-	})
+	event := observe.Event{
+		Type:      observe.EventKeyOp,
+		NodeID:    c.nodeID,
+		Timestamp: time.Now(),
+		Metadata: map[string]interface{}{
+			"op":           "delete",
+			"key":          key,
+			"key_hash":     keyHash,
+			"replica_nodes": replicaIDs,
+			"consistency":  consistency,
+			"nodes":        len(nodes),
+			"success":      true,
+		},
+	}
+	c.events.PublishEvent(event)
+	if c.gossip != nil {
+		c.gossip.BroadcastEvent(event)
+	}
 
 	// Update approximate key count in metrics
 	if keys, err := c.engine.Count(); err == nil {

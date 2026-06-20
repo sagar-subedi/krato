@@ -64,6 +64,7 @@ const App: React.FC = () => {
       if (ringRes.ok) setRingData(await ringRes.json());
       if (nodesRes.ok) {
         const nodesData = (await nodesRes.json()) as ClusterState;
+        nodesData.nodes.sort((a, b) => a.ID.localeCompare(b.ID));
         setCluster(nodesData);
         if (!selectedNodeId && nodesData.nodes.length > 0) {
           setSelectedNodeId(nodesData.nodes[0].ID);

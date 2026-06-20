@@ -64,7 +64,10 @@ func (eb *EventBus) Publish(nodeID string, eventType EventType, metadata interfa
 		Timestamp: time.Now(),
 		Metadata:  metadata,
 	}
+	eb.PublishEvent(event)
+}
 
+func (eb *EventBus) PublishEvent(event Event) {
 	eb.mu.Lock()
 	// Add to history
 	eb.history = append(eb.history, event)

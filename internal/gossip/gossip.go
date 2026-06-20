@@ -3,11 +3,13 @@ package gossip
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net"
 	"sync"
 	"time"
+	"github.com/sagarsubedi/krato/internal/observe"
 )
 
 type NodeState string
@@ -32,6 +34,7 @@ type Message struct {
 	Type     string            `json:"type"` // HELLO, SYNC
 	SenderID string            `json:"sender_id"`
 	Members  map[string]Member `json:"members"`
+	Events   []observe.Event   `json:"events,omitempty"`
 }
 
 type MemberEvent struct {
@@ -48,11 +51,16 @@ type Gossiper struct {
 	conn    *net.UDPConn
 	quit    chan struct{}
 	ringCh  chan MemberEvent
+	eventBus *observe.EventBus
 	enabled bool
 	seeds   []string
+
+	// Event relay state
+	pendingEvents []observe.Event
+	seenEvents    map[string]time.Time // key = nodeID + timestamp
 }
 
-func NewGossiper(nodeID, bindAddr, advAddr, grpcAddr string, ringCh chan MemberEvent) (*Gossiper, error) {
+func NewGossiper(nodeID, bindAddr, advAddr, grpcAddr string, ringCh chan MemberEvent, eb *observe.EventBus) (*Gossiper, error) {
 	addr, err := net.ResolveUDPAddr("udp", bindAddr)
 	if err != nil {
 		return nil, err
@@ -64,13 +72,16 @@ func NewGossiper(nodeID, bindAddr, advAddr, grpcAddr string, ringCh chan MemberE
 	}
 
 	g := &Gossiper{
-		nodeID:  nodeID,
-		address: advAddr,
-		members: make(map[string]*Member),
-		conn:    conn,
-		quit:    make(chan struct{}),
-		ringCh:  ringCh,
-		enabled: true,
+		nodeID:        nodeID,
+		address:       advAddr,
+		members:       make(map[string]*Member),
+		conn:          conn,
+		quit:          make(chan struct{}),
+		ringCh:        ringCh,
+		eventBus:      eb,
+		enabled:       true,
+		pendingEvents: make([]observe.Event, 0),
+		seenEvents:    make(map[string]time.Time),
 	}
 
 	// Register self
@@ -94,6 +105,7 @@ func (g *Gossiper) Start(seedNodes []string) {
 	go g.listen()
 	go g.gossipLoop()
 	go g.failureDetectionLoop()
+	go g.eventMaintenanceLoop()
 
 	if len(seedNodes) > 0 {
 		g.join(seedNodes)
@@ -181,14 +193,34 @@ func (g *Gossiper) listen() {
 			slog.Error("Gossip decode failed", "error", err)
 			continue
 		}
-		g.merge(msg.SenderID, msg.Members)
+		g.merge(msg.SenderID, msg.Members, msg.Events)
 	}
 }
 
-func (g *Gossiper) merge(senderID string, remote map[string]Member) {
-	slog.Debug("Gossip merge started", "nodes_in_packet", len(remote))
+func (g *Gossiper) merge(senderID string, remote map[string]Member, events []observe.Event) {
+	slog.Debug("Gossip merge started", "nodes_in_packet", len(remote), "events_in_packet", len(events))
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	// Handle relay events
+	for _, e := range events {
+		eventKey := fmt.Sprintf("%s-%d", e.NodeID, e.Timestamp.UnixNano())
+		if _, seen := g.seenEvents[eventKey]; seen {
+			continue
+		}
+
+		g.seenEvents[eventKey] = time.Now()
+		// Relay further
+		g.pendingEvents = append(g.pendingEvents, e)
+		if len(g.pendingEvents) > 50 {
+			g.pendingEvents = g.pendingEvents[1:]
+		}
+
+		// Publish locally if it's not a local gossip event (already handled by membership)
+		if g.eventBus != nil {
+			g.eventBus.Publish(e.NodeID, e.Type, e.Metadata)
+		}
+	}
 
 	for id, rMem := range remote {
 		if id == g.nodeID {
@@ -284,6 +316,9 @@ func (g *Gossiper) gossip() {
 			peers = append(peers, m)
 		}
 	}
+
+	// Attach pending events to the gossip packet
+	msg.Events = g.pendingEvents
 	data, _ := json.Marshal(msg)
 	g.mu.RUnlock()
 
@@ -364,4 +399,39 @@ func (g *Gossiper) GetFullState() map[string]Member {
 		res[id] = *m
 	}
 	return res
+}
+
+func (g *Gossiper) BroadcastEvent(event observe.Event) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	eventKey := fmt.Sprintf("%s-%d", event.NodeID, event.Timestamp.UnixNano())
+	g.seenEvents[eventKey] = time.Now()
+	g.pendingEvents = append(g.pendingEvents, event)
+
+	// Cap buffer
+	if len(g.pendingEvents) > 50 {
+		g.pendingEvents = g.pendingEvents[1:]
+	}
+}
+
+func (g *Gossiper) eventMaintenanceLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			g.mu.Lock()
+			now := time.Now()
+			for k, seenAt := range g.seenEvents {
+				if now.Sub(seenAt) > 30*time.Minute {
+					delete(g.seenEvents, k)
+				}
+			}
+			g.mu.Unlock()
+		case <-g.quit:
+			return
+		}
+	}
 }

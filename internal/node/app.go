@@ -50,7 +50,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 
 	// Gossip Protocol
 	ringCh := make(chan gossip.MemberEvent, 100)
-	gossiper, err := gossip.NewGossiper(cfg.ID, "0.0.0.0:"+cfg.GossipPort, cfg.Advertise+":"+cfg.GossipPort, cfg.Advertise+":"+cfg.GRPCPort, ringCh)
+	gossiper, err := gossip.NewGossiper(cfg.ID, "0.0.0.0:"+cfg.GossipPort, cfg.Advertise+":"+cfg.GossipPort, cfg.Advertise+":"+cfg.GRPCPort, ringCh, events)
 	if err != nil {
 		engine.Close()
 		return nil, err
