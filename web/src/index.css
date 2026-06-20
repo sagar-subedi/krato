@@ -1,10 +1,8 @@
+@import "tailwindcss";
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
+@theme {
   --color-background: #09090b;
   --color-surface: #121217;
   --color-board: #18181b;
@@ -15,6 +13,9 @@
   --color-text: #fafafa;
   --color-text-dim: #71717a;
   --color-border: rgba(255, 255, 255, 0.06);
+}
+
+:root {
   color-scheme: dark;
 }
 
