@@ -6,7 +6,7 @@ services:
     image: ${REGISTRY}/${IMAGE_NAME}:latest
     restart: always
     hostname: node1
-    command: ["--id=node1", "--advertise=${VPS_IP}", "--http=18080", "--grpc=19090", "--gossip=17070", "--seeds=node2:17070,node3:17070,node4:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
+    command: ["--id=node1", "--advertise=${VPS_IP}", "--http=18080", "--grpc=19090", "--gossip=17070", "--seeds=node2:17071,node3:17072,node4:17073,node5:17074", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
     ports:
       - "18080:18080"
       - "19090:19090"
@@ -20,11 +20,11 @@ services:
     image: ${REGISTRY}/${IMAGE_NAME}:latest
     restart: always
     hostname: node2
-    command: ["--id=node2", "--advertise=${VPS_IP}", "--http=18081", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node3:17070,node5:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
+    command: ["--id=node2", "--advertise=${VPS_IP}", "--http=18081", "--grpc=19091", "--gossip=17071", "--seeds=node1:17070,node3:17072,node4:17073,node5:17074", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
     ports:
       - "18081:18081"
-      - "19091:19090"
-      - "17071:17070/udp"
+      - "19091:19091"
+      - "17071:17071/udp"
     volumes:
       - node2_data:/data
     environment:
@@ -34,11 +34,11 @@ services:
     image: ${REGISTRY}/${IMAGE_NAME}:latest
     restart: always
     hostname: node3
-    command: ["--id=node3", "--advertise=${VPS_IP}", "--http=18082", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node4:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
+    command: ["--id=node3", "--advertise=${VPS_IP}", "--http=18082", "--grpc=19092", "--gossip=17072", "--seeds=node1:17070,node2:17071,node4:17073,node5:17074", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
     ports:
       - "18082:18082"
-      - "19092:19090"
-      - "17072:17070/udp"
+      - "19092:19092"
+      - "17072:17072/udp"
     volumes:
       - node3_data:/data
     environment:
@@ -48,11 +48,11 @@ services:
     image: ${REGISTRY}/${IMAGE_NAME}:latest
     restart: always
     hostname: node4
-    command: ["--id=node4", "--advertise=${VPS_IP}", "--http=18083", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node3:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
+    command: ["--id=node4", "--advertise=${VPS_IP}", "--http=18083", "--grpc=19093", "--gossip=17073", "--seeds=node1:17070,node2:17071,node3:17072,node5:17074", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
     ports:
       - "18083:18083"
-      - "19093:19090"
-      - "17073:17070/udp"
+      - "19093:19093"
+      - "17073:17073/udp"
     volumes:
       - node4_data:/data
     environment:
@@ -62,11 +62,11 @@ services:
     image: ${REGISTRY}/${IMAGE_NAME}:latest
     restart: always
     hostname: node5
-    command: ["--id=node5", "--advertise=${VPS_IP}", "--http=18084", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node3:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
+    command: ["--id=node5", "--advertise=${VPS_IP}", "--http=18084", "--grpc=19094", "--gossip=17074", "--seeds=node1:17070,node2:17071,node3:17072,node4:17073", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
     ports:
       - "18084:18084"
-      - "19094:19090"
-      - "17074:17070/udp"
+      - "19094:19094"
+      - "17074:17074/udp"
     volumes:
       - node5_data:/data
     environment:
