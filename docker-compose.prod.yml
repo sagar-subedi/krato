@@ -6,7 +6,7 @@ services:
     image: ${REGISTRY}/${IMAGE_NAME}:latest
     restart: always
     hostname: node1
-    command: ["--id=node1", "--advertise=${VPS_IP}", "--http=18080", "--grpc=19090", "--gossip=17070", "--seeds=node2:17070,node3:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node1", "--advertise=${VPS_IP}", "--http=18080", "--grpc=19090", "--gossip=17070", "--seeds=node2:17070,node3:17070,node4:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
     ports:
       - "18080:18080"
       - "19090:19090"
@@ -20,7 +20,7 @@ services:
     image: ${REGISTRY}/${IMAGE_NAME}:latest
     restart: always
     hostname: node2
-    command: ["--id=node2", "--advertise=${VPS_IP}", "--http=18081", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node3:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node2", "--advertise=${VPS_IP}", "--http=18081", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node3:17070,node5:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
     ports:
       - "18081:18081"
       - "19091:19090"
@@ -34,7 +34,7 @@ services:
     image: ${REGISTRY}/${IMAGE_NAME}:latest
     restart: always
     hostname: node3
-    command: ["--id=node3", "--advertise=${VPS_IP}", "--http=18082", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070", "--db=/data/krato.db", "--wal=/data/krato.wal"]
+    command: ["--id=node3", "--advertise=${VPS_IP}", "--http=18082", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node4:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
     ports:
       - "18082:18082"
       - "19092:19090"
@@ -44,7 +44,37 @@ services:
     environment:
       - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
 
+  node4:
+    image: ${REGISTRY}/${IMAGE_NAME}:latest
+    restart: always
+    hostname: node4
+    command: ["--id=node4", "--advertise=${VPS_IP}", "--http=18083", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node3:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
+    ports:
+      - "18083:18083"
+      - "19093:19090"
+      - "17073:17070/udp"
+    volumes:
+      - node4_data:/data
+    environment:
+      - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
+
+  node5:
+    image: ${REGISTRY}/${IMAGE_NAME}:latest
+    restart: always
+    hostname: node5
+    command: ["--id=node5", "--advertise=${VPS_IP}", "--http=18084", "--grpc=19090", "--gossip=17070", "--seeds=node1:17070,node2:17070,node3:17070", "--db=/data/krato.db", "--wal=/data/krato.wal", "--rf=3"]
+    ports:
+      - "18084:18084"
+      - "19094:19090"
+      - "17074:17070/udp"
+    volumes:
+      - node5_data:/data
+    environment:
+      - KRATO_GEMINI_API_KEY=${GEMINI_API_KEY}
+
 volumes:
   node1_data:
   node2_data:
   node3_data:
+  node4_data:
+  node5_data:
