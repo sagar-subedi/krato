@@ -96,7 +96,7 @@ const NodeExplorer: React.FC<NodeExplorerProps> = ({ nodes, selectedNodeId, onSe
           <span className="metric-label">Cluster Nodes</span>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5 custom-scrollbar">
-          {nodes.map(n => (
+          {nodes.slice().sort((a, b) => a.ID.localeCompare(b.ID)).map(n => (
             <button
               key={n.ID}
               onClick={() => onSelectNode(n.ID)}
