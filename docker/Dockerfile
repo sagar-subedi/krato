@@ -7,10 +7,6 @@ COPY . .
 
 # Build Frontend
 WORKDIR /app/web
-
-# Truth Check: Does index.html exist here?
-RUN pwd && ls -la && ls -la index.html
-
 RUN npm install --legacy-peer-deps
 RUN npm run build
 

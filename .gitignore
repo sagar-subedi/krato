@@ -21,6 +21,7 @@ protoc.zip
 
 .env
 
-*.html
+# Exclude specifically large generated HTML files but keep index.html
+krato-implementation-plan.html
 
 java-port/
