@@ -330,18 +330,14 @@ func (g *Gossiper) detectFailures() {
 		}
 
 		if m.State == StateAlive {
-			if now.Sub(m.LastSeen) > 3*time.Second {
+			if now.Sub(m.LastSeen) > 10*time.Second {
 				m.State = StateSuspect
-				slog.Warn("Node suspect", "id", id)
+				slog.Warn("Node suspect", "id", id, "last_seen_sec", now.Sub(m.LastSeen).Seconds())
 			}
 		} else if m.State == StateSuspect {
-			if now.Sub(m.LastSeen) > 8*time.Second {
+			if now.Sub(m.LastSeen) > 30*time.Second {
 				m.State = StateDead
-				// REMOVED: m.Generation = now.UnixNano() 
-				// Only the node itself should update its authoritative Generation for state changes.
-				// By not bumping generation here, we allow the node to override this "Dead" 
-				// state with its own slightly newer "Alive" generation when it comes back.
-				slog.Error("Node dead", "id", id)
+				slog.Error("Node dead", "id", id, "last_seen_sec", now.Sub(m.LastSeen).Seconds())
 				g.notifyRing(*m, false, true)
 			}
 		}
