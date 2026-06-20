@@ -19,7 +19,7 @@ import HashRing from './components/HashRing';
 import EventLog from './components/EventLog';
 import AIChat from './components/AIChat';
 import NodeExplorer from './components/NodeExplorer';
-import ArchitectureAcademy from './components/ArchitectureAcademy';
+import ExplorerGuide from './components/ExplorerGuide';
 import type { KratoEvent, ClusterState, RingSnapshot } from './types';
 
 const App: React.FC = () => {
@@ -32,7 +32,7 @@ const App: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
   const [clusterKeys, setClusterKeys] = useState<Record<string, string[]>>({});
   const [activeModal, setActiveModal] = useState<'explorer' | 'chaos' | null>(null);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'academy'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'guide'>('dashboard');
 
   // Inline KV state
   const [kvMode, setKvMode] = useState<'set' | 'get'>('set');
@@ -214,23 +214,24 @@ const App: React.FC = () => {
     <>
       <div className="flex flex-col h-screen bg-background text-text overflow-hidden">
         {/* ── Header ── */}
-        <header className="flex items-center justify-between px-8 h-14 shrink-0 border-b border-white/[0.06]">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-              <Database size={16} className="text-white" />
+        {currentView !== 'guide' && (
+        <header className="flex items-center justify-between px-8 h-16 shrink-0 border-b border-white/[0.08] bg-black/30 backdrop-blur-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+              <Database size={18} className="text-white" />
             </div>
             <div>
-              <div className="text-sm font-bold tracking-tight leading-none">KRATO</div>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="text-base font-extrabold tracking-tight leading-none text-white">KRATO</div>
+              <div className="flex items-center gap-1.5 mt-1">
                 <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-secondary' : 'bg-error'} animate-pulse`} />
-                <span className="text-[8px] font-bold uppercase tracking-wider text-text-dim">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-white/50">
                   {isConnected ? 'Live' : 'Reconnecting'}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-8">
             <CompactMetric label="Throughput" value={`${cluster?.metrics?.request_count ?? 0}`} unit="rps" icon={<Activity size={12} />} />
             <CompactMetric label="P99" value={cluster?.metrics?.p99 ? `${(cluster.metrics.p99 / 1e6).toFixed(1)}` : '—'} unit="ms" icon={<Clock size={12} />} />
             <CompactMetric label="Nodes" value={`${cluster?.nodes?.length ?? 0}`} unit="up" icon={<Layers size={12} />} />
@@ -239,36 +240,33 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveModal(activeModal === 'chaos' ? null : 'chaos')}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
+              className={`cursor-pointer px-4 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest border transition-all ${
                 activeModal === 'chaos'
-                  ? 'bg-error/10 border-error/30 text-error'
-                  : 'border-white/5 text-text-dim hover:border-white/10 hover:text-white'
+                  ? 'bg-error/10 border-error/40 text-error'
+                  : 'border-white/10 text-white/60 hover:border-white/20 hover:text-white hover:bg-white/5'
               }`}
             >
               Chaos Lab
             </button>
             <button
-              onClick={() => setCurrentView(currentView === 'academy' ? 'dashboard' : 'academy')}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
-                currentView === 'academy'
-                  ? 'bg-secondary/10 border-secondary/30 text-secondary'
-                  : 'border-white/5 text-text-dim hover:border-white/10 hover:text-white'
-              }`}
-            >
-              {currentView === 'academy' ? 'Dashboard' : 'Academy'}
-            </button>
-            <button
               onClick={() => setActiveModal(activeModal === 'explorer' ? null : 'explorer')}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
+              className={`cursor-pointer px-4 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest border transition-all ${
                 activeModal === 'explorer'
-                  ? 'bg-primary/10 border-primary/30 text-primary'
-                  : 'border-white/5 text-text-dim hover:border-white/10 hover:text-white'
+                  ? 'bg-primary/10 border-primary/40 text-primary'
+                  : 'border-white/10 text-white/60 hover:border-white/20 hover:text-white hover:bg-white/5'
               }`}
             >
               Explorer
             </button>
+            <button
+              onClick={() => setCurrentView((currentView as string) === 'guide' ? 'dashboard' : 'guide')}
+              className="cursor-pointer px-4 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest border border-secondary/30 text-secondary hover:bg-secondary/10 transition-all"
+            >
+              Guide
+            </button>
           </div>
         </header>
+        )}
 
         {/* ── Main Content Switcher ── */}
         <main className="flex-1 overflow-hidden relative">
@@ -416,13 +414,13 @@ const App: React.FC = () => {
               </motion.div>
             ) : (
               <motion.div
-                key="academy"
+                key="guide"
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
                 className="h-full"
               >
-                <ArchitectureAcademy onBack={() => setCurrentView('dashboard')} />
+                <ExplorerGuide onBack={() => setCurrentView('dashboard')} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -486,12 +484,12 @@ const App: React.FC = () => {
 /* Sub-components */
 
 const CompactMetric: React.FC<{ label: string; value: string; unit: string; icon: React.ReactNode }> = ({ label, value, unit, icon }) => (
-  <div className="flex items-center gap-2">
-    <div className="text-text-dim">{icon}</div>
+  <div className="flex items-center gap-2.5">
+    <div className="text-white/40">{icon}</div>
     <div>
-      <div className="text-[8px] font-bold text-text-dim uppercase tracking-wider">{label}</div>
-      <div className="text-xs font-mono font-bold leading-none">
-        {value}<span className="text-[9px] text-text-dim ml-0.5 font-normal">{unit}</span>
+      <div className="text-[9px] font-bold text-white/40 uppercase tracking-widest leading-none mb-0.5">{label}</div>
+      <div className="text-sm font-mono font-bold leading-none text-white">
+        {value}<span className="text-[10px] text-white/40 ml-0.5 font-normal">{unit}</span>
       </div>
     </div>
   </div>
