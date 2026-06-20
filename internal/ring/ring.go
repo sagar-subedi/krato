@@ -100,29 +100,63 @@ func (hr *HashRing) GetNodes(key string, count int) []Node {
 
 	h := hashKey(key)
 
+	// Find the primary node via the vnode ring
 	idx := sort.Search(len(hr.ring), func(i int) bool {
 		return hr.ring[i] >= h
 	})
-
 	if idx == len(hr.ring) {
 		idx = 0
 	}
+	primaryID := hr.keys[hr.ring[idx]]
 
+	// Build physical ring ordered by minimum token per node
+	physicalOrder := hr.physicalRingOrder()
+
+	// Find primary's position in the physical ring and walk clockwise
 	var results []Node
-	seen := make(map[string]bool)
-
-	for i := 0; i < len(hr.ring); i++ {
-		nodeID := hr.keys[hr.ring[(idx+i)%len(hr.ring)]]
-		if !seen[nodeID] {
-			seen[nodeID] = true
-			results = append(results, hr.nodes[nodeID])
-			if len(results) == count {
-				break
-			}
+	startIdx := 0
+	for i, id := range physicalOrder {
+		if id == primaryID {
+			startIdx = i
+			break
 		}
 	}
-
+	for i := 0; i < len(physicalOrder) && len(results) < count; i++ {
+		nid := physicalOrder[(startIdx+i)%len(physicalOrder)]
+		results = append(results, hr.nodes[nid])
+	}
 	return results
+}
+
+// physicalRingOrder returns physical node IDs sorted by their minimum vnode hash.
+// This gives a stable clockwise ordering that matches the UI visualization.
+// MUST be called with hr.mu held.
+func (hr *HashRing) physicalRingOrder() []string {
+	minHash := make(map[string]uint64)
+	for _, nodeID := range hr.nodes {
+		minHash[nodeID.ID] = ^uint64(0)
+	}
+	for h, nodeID := range hr.keys {
+		if h < minHash[nodeID] {
+			minHash[nodeID] = h
+		}
+	}
+	type entry struct {
+		id   string
+		hash uint64
+	}
+	entries := make([]entry, 0, len(minHash))
+	for id, h := range minHash {
+		entries = append(entries, entry{id, h})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].hash < entries[j].hash
+	})
+	ids := make([]string, len(entries))
+	for i, e := range entries {
+		ids[i] = e.id
+	}
+	return ids
 }
 
 // GetSnapshot returns a clone of the ring state for visualization.
@@ -168,18 +202,21 @@ func (hr *HashRing) GetKeyInfo(key string, replicas int) (uint64, []string) {
 	if idx == len(hr.ring) {
 		idx = 0
 	}
+	primaryID := hr.keys[hr.ring[idx]]
+
+	// Use physical ring succession for consistent, adjacent replica assignment
+	physicalOrder := hr.physicalRingOrder()
+	startIdx := 0
+	for i, id := range physicalOrder {
+		if id == primaryID {
+			startIdx = i
+			break
+		}
+	}
 
 	var nodeIDs []string
-	seen := make(map[string]bool)
-	for i := 0; i < len(hr.ring); i++ {
-		nodeID := hr.keys[hr.ring[(idx+i)%len(hr.ring)]]
-		if !seen[nodeID] {
-			seen[nodeID] = true
-			nodeIDs = append(nodeIDs, nodeID)
-			if len(nodeIDs) == replicas {
-				break
-			}
-		}
+	for i := 0; i < len(physicalOrder) && len(nodeIDs) < replicas; i++ {
+		nodeIDs = append(nodeIDs, physicalOrder[(startIdx+i)%len(physicalOrder)])
 	}
 
 	return h, nodeIDs

@@ -31,6 +31,17 @@ const AIChat: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMsg }),
       });
+
+      // Handle non-2xx HTTP errors (e.g. 429 rate-limit, 500 server error)
+      if (!response.ok) {
+        const errText = await response.text().catch(() => response.statusText);
+        const friendly = response.status === 429
+          ? '⚠️ AI quota exceeded — try again in a moment.'
+          : `Error ${response.status}: ${errText || response.statusText}`;
+        setMessages(prev => { const n = [...prev]; n[aiMsgIdx] = { role: 'ai', text: friendly }; return n; });
+        return;
+      }
+
       if (!response.body) throw new Error('No response body');
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -50,10 +61,15 @@ const AIChat: React.FC = () => {
           }
         }
       }
-    } catch {
+      // Stream ended with no content — show a fallback instead of blank
+      if (!fullText) {
+        setMessages(prev => { const n = [...prev]; n[aiMsgIdx] = { role: 'ai', text: '⚠️ No response received from the AI.' }; return n; });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       setMessages(prev => {
         const next = [...prev];
-        next[aiMsgIdx] = { role: 'ai', text: 'Error: Could not reach diagnostic engine.' };
+        next[aiMsgIdx] = { role: 'ai', text: `Error: ${msg}` };
         return next;
       });
     } finally {
@@ -107,7 +123,7 @@ const AIChat: React.FC = () => {
                     <Sparkles size={16} color="white" />
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: '-0.02em' }}>Gemini Diagnostic</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'white', letterSpacing: '-0.02em' }}>Krato AI</div>
                     <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                       Cluster Analysis Engine
                     </div>
@@ -161,9 +177,12 @@ const AIChat: React.FC = () => {
                       color: m.role === 'user' ? 'white' : '#d4d4d8',
                       border: m.role === 'ai' ? '1px solid rgba(255,255,255,0.06)' : 'none',
                     }}>
-                      {m.text || (m.role === 'ai' && (
-                        <span style={{ opacity: 0.5, fontFamily: 'monospace', fontSize: 11 }}>Thinking…</span>
-                      ))}
+                      {m.text
+                        ? m.text
+                        : m.role === 'ai' && isTyping
+                          ? <span style={{ opacity: 0.5, fontFamily: 'monospace', fontSize: 11 }}>Thinking…</span>
+                          : <span style={{ opacity: 0.4, fontFamily: 'monospace', fontSize: 11, color: '#ef4444' }}>⚠️ Empty response</span>
+                      }
                     </div>
                   </div>
                 ))}

@@ -25,7 +25,7 @@ func NewEngine(ctx context.Context, apiKey string, coord *coordinator.Coordinato
 		return nil, err
 	}
 
-	model := client.GenerativeModel("gemini-1.5-flash-latest")
+	model := client.GenerativeModel("gemini-2.0-flash")
 
 	e := &Engine{
 		client:  client,
@@ -53,6 +53,38 @@ func NewEngine(ctx context.Context, apiKey string, coord *coordinator.Coordinato
 				{
 					Name:        "get_chaos_status",
 					Description: "Check if any chaos experiments (latency injection or node kills) are active.",
+				},
+				{
+					Name:        "get_key",
+					Description: "Read the value of a key from the distributed store using quorum consistency.",
+					Parameters: &genai.Schema{
+						Type: genai.TypeObject,
+						Properties: map[string]*genai.Schema{
+							"key": {
+								Type:        genai.TypeString,
+								Description: "The key to look up.",
+							},
+						},
+						Required: []string{"key"},
+					},
+				},
+				{
+					Name:        "set_key",
+					Description: "Write a value to a key in the distributed store using quorum consistency.",
+					Parameters: &genai.Schema{
+						Type: genai.TypeObject,
+						Properties: map[string]*genai.Schema{
+							"key": {
+								Type:        genai.TypeString,
+								Description: "The key to write.",
+							},
+							"value": {
+								Type:        genai.TypeString,
+								Description: "The value to store.",
+							},
+						},
+						Required: []string{"key", "value"},
+					},
 				},
 			},
 		},
@@ -116,6 +148,27 @@ func (e *Engine) handleFunctionCall(ctx context.Context, fn genai.FunctionCall) 
 		return map[string]any{"events": e.events.GetHistory()}, nil
 	case "get_chaos_status":
 		return map[string]any{"chaos": e.coord.GetChaos()}, nil
+	case "get_key":
+		key, ok := fn.Args["key"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing string argument 'key'")
+		}
+		val, err := e.coord.Read(ctx, key, "quorum")
+		if err != nil {
+			return map[string]any{"error": err.Error()}, nil
+		}
+		return map[string]any{"key": key, "value": string(val)}, nil
+	case "set_key":
+		key, okK := fn.Args["key"].(string)
+		val, okV := fn.Args["value"].(string)
+		if !okK || !okV {
+			return nil, fmt.Errorf("missing string arguments 'key' or 'value'")
+		}
+		err := e.coord.Write(ctx, key, []byte(val), "quorum")
+		if err != nil {
+			return map[string]any{"error": err.Error()}, nil
+		}
+		return map[string]any{"status": "success", "key": key, "value": val}, nil
 	default:
 		return nil, fmt.Errorf("unknown function: %s", fn.Name)
 	}
