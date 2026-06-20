@@ -239,11 +239,21 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Write loop
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case event := <-eventCh:
 			mu.Lock()
 			if err := conn.WriteJSON(event); err != nil {
+				mu.Unlock()
+				return
+			}
+			mu.Unlock()
+		case <-ticker.C:
+			mu.Lock()
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				mu.Unlock()
 				return
 			}

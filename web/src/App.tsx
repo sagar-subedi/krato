@@ -40,18 +40,71 @@ const App: React.FC = () => {
   const kvKeyRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
-    ws.onopen = () => { setIsConnected(true); fetchInitialData(); };
-    ws.onmessage = (e) => {
-      const event = JSON.parse(e.data) as KratoEvent;
-      setEvents(prev => [event, ...prev.slice(0, 49)]);
-      if (event.type === 'key_op') setActiveKeyOp(event);
-      if (event.type === 'node_status') setActiveNodeEvent(event);
-      if (['gossip', 'node_status', 'key_op'].includes(event.type)) fetchInitialData();
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+    let heartbeatInterval: ReturnType<typeof setInterval>;
+    let retryCount = 0;
+
+    const connect = () => {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+      
+      console.log(`Connecting to WebSocket: ${wsUrl} (Attempt ${retryCount + 1})`);
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('WebSocket Connected');
+        setIsConnected(true);
+        retryCount = 0;
+        fetchInitialData();
+        
+        // Heartbeat to keep proxy connections alive
+        heartbeatInterval = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data) as KratoEvent;
+          setEvents(prev => [event, ...prev.slice(0, 49)]);
+          if (event.type === 'key_op') setActiveKeyOp(event);
+          if (event.type === 'node_status') setActiveNodeEvent(event);
+          if (['gossip', 'node_status', 'key_op'].includes(event.type)) fetchInitialData();
+        } catch (err) {
+          // Ignore pong or non-JSON messages
+        }
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        clearInterval(heartbeatInterval);
+        
+        // Exponential backoff: 1s, 2s, 4s, 8s, max 15s
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 15000);
+        console.log(`WebSocket closed. Retrying in ${delay}ms...`);
+        
+        reconnectTimeout = setTimeout(() => {
+          retryCount++;
+          connect();
+        }, delay);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        ws?.close();
+      };
     };
-    ws.onclose = () => setIsConnected(false);
-    return () => ws.close();
+
+    connect();
+
+    return () => {
+      ws?.close();
+      clearTimeout(reconnectTimeout);
+      clearInterval(heartbeatInterval);
+    };
   }, []);
 
   const fetchInitialData = async () => {
