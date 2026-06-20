@@ -1,5 +1,5 @@
 # --- STAGE 1: Unified Build Stage ---
-FROM node:20-alpine AS build-env
+FROM node:22-alpine AS build-env
 WORKDIR /app
 
 # Copy the entire repository to preserve structure
@@ -7,6 +7,11 @@ COPY . .
 
 # Build Frontend
 WORKDIR /app/web
+
+# Debug: What is REALLY in the config files?
+RUN echo "--- tsconfig.app.json content ---" && cat tsconfig.app.json
+RUN echo "--- tsconfig.node.json content ---" && cat tsconfig.node.json
+
 RUN npm install
 RUN npm run build
 
