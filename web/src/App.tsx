@@ -14,10 +14,12 @@ import {
   ArrowRight,
   Loader2,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import HashRing from './components/HashRing';
 import EventLog from './components/EventLog';
 import AIChat from './components/AIChat';
 import NodeExplorer from './components/NodeExplorer';
+import ArchitectureAcademy from './components/ArchitectureAcademy';
 import type { KratoEvent, ClusterState, RingSnapshot } from './types';
 
 const App: React.FC = () => {
@@ -30,6 +32,7 @@ const App: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
   const [clusterKeys, setClusterKeys] = useState<Record<string, string[]>>({});
   const [activeModal, setActiveModal] = useState<'explorer' | 'chaos' | null>(null);
+  const [currentView, setCurrentView] = useState<'dashboard' | 'academy'>('dashboard');
 
   // Inline KV state
   const [kvMode, setKvMode] = useState<'set' | 'get'>('set');
@@ -245,6 +248,16 @@ const App: React.FC = () => {
               Chaos Lab
             </button>
             <button
+              onClick={() => setCurrentView(currentView === 'academy' ? 'dashboard' : 'academy')}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                currentView === 'academy'
+                  ? 'bg-secondary/10 border-secondary/30 text-secondary'
+                  : 'border-white/5 text-text-dim hover:border-white/10 hover:text-white'
+              }`}
+            >
+              {currentView === 'academy' ? 'Dashboard' : 'Academy'}
+            </button>
+            <button
               onClick={() => setActiveModal(activeModal === 'explorer' ? null : 'explorer')}
               className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
                 activeModal === 'explorer'
@@ -257,139 +270,162 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* ── Main two-column hero ── */}
-        <main className="flex-1 overflow-hidden hero-container">
+        {/* ── Main Content Switcher ── */}
+        <main className="flex-1 overflow-hidden relative">
+          <AnimatePresence mode="wait">
+            {currentView === 'dashboard' ? (
+              <motion.div
+                key="dashboard"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="h-full flex flex-col"
+              >
+                <div className="flex-1 hero-container overflow-hidden">
+                  {/* Left: Ring + Inline KV strip */}
+                  <div className="flex flex-col overflow-hidden gap-3 min-h-0">
+                    {/* Hash Ring card */}
+                    <div className="bento-card flex-1 flex flex-col items-center justify-center relative overflow-hidden min-h-0">
+                      <div className="absolute top-5 left-5 z-10 space-y-0.5">
+                        <div className="metric-label">Consistency Topology</div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                          <span className="text-[9px] font-mono text-white/40">
+                            {Object.keys(ringData).length} vnodes · {cluster?.nodes?.length ?? 0} shards
+                          </span>
+                        </div>
+                      </div>
 
-          {/* Left: Ring + Inline KV strip */}
-          <div className="flex flex-col overflow-hidden gap-3 min-h-0">
-            {/* Hash Ring card */}
-            <div className="bento-card flex-1 flex flex-col items-center justify-center relative overflow-hidden min-h-0">
-              <div className="absolute top-5 left-5 z-10 space-y-0.5">
-                <div className="metric-label">Consistency Topology</div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
-                  <span className="text-[9px] font-mono text-white/40">
-                    {Object.keys(ringData).length} vnodes · {cluster?.nodes?.length ?? 0} shards
-                  </span>
-                </div>
-              </div>
+                      <HashRing
+                        ringData={ringData}
+                        nodes={cluster?.nodes || []}
+                        activeOp={activeKeyOp}
+                        nodeEvent={activeNodeEvent}
+                        onSelectNode={(id) => {
+                          setSelectedNodeId(id);
+                          setActiveModal('explorer');
+                        }}
+                      />
 
-              <HashRing
-                ringData={ringData}
-                nodes={cluster?.nodes || []}
-                activeOp={activeKeyOp}
-                nodeEvent={activeNodeEvent}
-                onSelectNode={(id) => {
-                  setSelectedNodeId(id);
-                  setActiveModal('explorer');
-                }}
-              />
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] text-white/15 font-bold uppercase tracking-widest whitespace-nowrap">
+                        Click any node to explore · Keys flash on write/read
+                      </div>
+                    </div>
 
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] text-white/15 font-bold uppercase tracking-widest whitespace-nowrap">
-                Click any node to explore · Keys flash on write/read
-              </div>
-            </div>
+                    {/* Inline KV Input Strip */}
+                    <div className="bento-card shrink-0 p-4!">
+                      <div className="flex items-center gap-3">
+                        {/* Mode Toggle */}
+                        <div className="flex bg-black/30 rounded-lg p-0.5 shrink-0">
+                          <button
+                            onClick={() => { setKvMode('set'); setKvResult(null); }}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${kvMode === 'set' ? 'bg-primary text-white' : 'text-text-dim hover:text-white'}`}
+                          >
+                            <Plus size={10} className="inline mr-1" />Set
+                          </button>
+                          <button
+                            onClick={() => { setKvMode('get'); setKvResult(null); }}
+                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${kvMode === 'get' ? 'bg-secondary text-white' : 'text-text-dim hover:text-white'}`}
+                          >
+                            <Search size={10} className="inline mr-1" />Get
+                          </button>
+                        </div>
 
-            {/* Inline KV Input Strip */}
-            <div className="bento-card shrink-0 p-4!">
-              <div className="flex items-center gap-3">
-                {/* Mode Toggle */}
-                <div className="flex bg-black/30 rounded-lg p-0.5 shrink-0">
-                  <button
-                    onClick={() => { setKvMode('set'); setKvResult(null); }}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${kvMode === 'set' ? 'bg-primary text-white' : 'text-text-dim hover:text-white'}`}
-                  >
-                    <Plus size={10} className="inline mr-1" />Set
-                  </button>
-                  <button
-                    onClick={() => { setKvMode('get'); setKvResult(null); }}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${kvMode === 'get' ? 'bg-secondary text-white' : 'text-text-dim hover:text-white'}`}
-                  >
-                    <Search size={10} className="inline mr-1" />Get
-                  </button>
-                </div>
+                        {/* Key Input */}
+                        <input
+                          ref={kvKeyRef}
+                          value={kvKey}
+                          onChange={e => { setKvKey(e.target.value); setKvResult(null); }}
+                          onKeyDown={e => e.key === 'Enter' && (kvMode === 'set' ? handleSet() : handleGet())}
+                          placeholder="Key"
+                          className="w-36 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-primary/40 transition-colors"
+                        />
 
-                {/* Key Input */}
-                <input
-                  ref={kvKeyRef}
-                  value={kvKey}
-                  onChange={e => { setKvKey(e.target.value); setKvResult(null); }}
-                  onKeyDown={e => e.key === 'Enter' && (kvMode === 'set' ? handleSet() : handleGet())}
-                  placeholder="Key"
-                  className="w-36 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-primary/40 transition-colors"
-                />
+                        {/* Value input (set mode only) */}
+                        {kvMode === 'set' && (
+                          <input
+                            value={kvValue}
+                            onChange={e => setKvValue(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSet()}
+                            placeholder="Value"
+                            className="flex-1 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-primary/40 transition-colors"
+                          />
+                        )}
 
-                {/* Value input (set mode only) */}
-                {kvMode === 'set' && (
-                  <input
-                    value={kvValue}
-                    onChange={e => setKvValue(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSet()}
-                    placeholder="Value"
-                    className="flex-1 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-primary/40 transition-colors"
-                  />
-                )}
+                        {/* Result (get mode) */}
+                        {kvMode === 'get' && (
+                          <div className="flex-1 bg-black/10 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono min-h-[36px] flex items-center">
+                            {kvLoading ? (
+                              <span className="text-text-dim animate-pulse">Querying quorum…</span>
+                            ) : kvResult ? (
+                              kvResult.error ? (
+                                <span className="text-error">{kvResult.error}</span>
+                              ) : kvResult.value === null ? (
+                                <span className="text-text-dim italic">Key not found</span>
+                              ) : (
+                                <span className="text-secondary break-all">{kvResult.value}</span>
+                              )
+                            ) : (
+                              <span className="text-white/15 italic">Result will appear here</span>
+                            )}
+                          </div>
+                        )}
 
-                {/* Result (get mode) */}
-                {kvMode === 'get' && (
-                  <div className="flex-1 bg-black/10 border border-white/5 rounded-lg px-3 py-2 text-[11px] font-mono min-h-[36px] flex items-center">
-                    {kvLoading ? (
-                      <span className="text-text-dim animate-pulse">Querying quorum…</span>
-                    ) : kvResult ? (
-                      kvResult.error ? (
-                        <span className="text-error">{kvResult.error}</span>
-                      ) : kvResult.value === null ? (
-                        <span className="text-text-dim italic">Key not found</span>
-                      ) : (
-                        <span className="text-secondary break-all">{kvResult.value}</span>
-                      )
-                    ) : (
-                      <span className="text-white/15 italic">Result will appear here</span>
-                    )}
+                        {/* CTA */}
+                        <button
+                          onClick={kvMode === 'set' ? handleSet : handleGet}
+                          disabled={kvLoading || !kvKey || (kvMode === 'set' && !kvValue)}
+                          className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-40 ${
+                            kvMode === 'set' ? 'bg-primary hover:bg-primary/80 text-white' : 'bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20'
+                          }`}
+                        >
+                          {kvLoading ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
+                          {kvMode === 'set' ? 'Write' : 'Fetch'}
+                        </button>
+
+                        {/* Set success result */}
+                        {kvMode === 'set' && kvResult && (
+                          <div className="text-[10px] font-mono shrink-0">
+                            {kvResult.error ? (
+                              <span className="text-error">{kvResult.error}</span>
+                            ) : (
+                              <span className="text-secondary">{kvResult.value}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
 
-                {/* CTA */}
-                <button
-                  onClick={kvMode === 'set' ? handleSet : handleGet}
-                  disabled={kvLoading || !kvKey || (kvMode === 'set' && !kvValue)}
-                  className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-40 ${
-                    kvMode === 'set' ? 'bg-primary hover:bg-primary/80 text-white' : 'bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20'
-                  }`}
-                >
-                  {kvLoading ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
-                  {kvMode === 'set' ? 'Write' : 'Fetch'}
-                </button>
-
-                {/* Set success result */}
-                {kvMode === 'set' && kvResult && (
-                  <div className="text-[10px] font-mono shrink-0">
-                    {kvResult.error ? (
-                      <span className="text-error">{kvResult.error}</span>
-                    ) : (
-                      <span className="text-secondary">{kvResult.value}</span>
-                    )}
+                  {/* Right: Real-time Event Stream */}
+                  <div className="bento-card flex flex-col overflow-hidden p-0! min-h-0">
+                    <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
+                      <span className="metric-label">System Pulse</span>
+                      <div className="flex gap-1 items-center">
+                        {[0, 1, 2].map(i => (
+                          <div key={i} className="w-1 h-1 rounded-full bg-secondary" style={{ opacity: 0.3 + i * 0.25 }} />
+                        ))}
+                        <span className="text-[8px] text-secondary ml-1.5 font-bold uppercase tracking-wider">Live</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <EventLog events={events} />
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Real-time Event Stream */}
-          <div className="bento-card flex flex-col overflow-hidden p-0! min-h-0">
-            <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
-              <span className="metric-label">System Pulse</span>
-              <div className="flex gap-1 items-center">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className="w-1 h-1 rounded-full bg-secondary" style={{ opacity: 0.3 + i * 0.25 }} />
-                ))}
-                <span className="text-[8px] text-secondary ml-1.5 font-bold uppercase tracking-wider">Live</span>
-              </div>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <EventLog events={events} />
-            </div>
-          </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="academy"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="h-full"
+              >
+                <ArchitectureAcademy onBack={() => setCurrentView('dashboard')} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
 
         {/* ── Modals ── */}
