@@ -7,19 +7,13 @@ COPY . .
 
 # Build Frontend
 WORKDIR /app/web
-
-# Debug: What is REALLY in the config files?
-RUN echo "--- tsconfig.app.json content ---" && cat tsconfig.app.json
-RUN echo "--- tsconfig.node.json content ---" && cat tsconfig.node.json
-
-RUN npm install
+RUN npm install --legacy-peer-deps
 RUN npm run build
 
 # --- STAGE 2: Backend Build ---
 FROM golang:1.25-alpine AS go-builder
 WORKDIR /app
 RUN apk add --no-cache git
-# Use the files already in the context
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o krato-node ./cmd/node/main.go
 
@@ -30,7 +24,6 @@ WORKDIR /app
 COPY --from=go-builder /app/krato-node /app/node
 COPY --from=build-env /app/web/dist /app/web/dist
 
-# Custom Port Block
 EXPOSE 18080 19090 17070
 
 VOLUME ["/data"]
