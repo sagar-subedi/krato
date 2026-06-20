@@ -61,10 +61,26 @@ const App: React.FC = () => {
         fetch('/api/nodes'),
         fetch('/api/cluster/keys'),
       ]);
-      if (ringRes.ok) setRingData(await ringRes.json());
-      if (nodesRes.ok) {
+      if (nodesRes.ok && ringRes.ok) {
         const nodesData = (await nodesRes.json()) as ClusterState;
-        nodesData.nodes.sort((a, b) => a.ID.localeCompare(b.ID));
+        const ringSnapshot = await ringRes.json();
+        setRingData(ringSnapshot);
+
+        // Sort physical nodes by their FIRST virtual node hash for correct ring visualization
+        const nodeMinHashes: Record<string, bigint> = {};
+        Object.entries(ringSnapshot).forEach(([hash, nodeId]) => {
+          const h = BigInt(hash);
+          if (nodeMinHashes[nodeId as string] === undefined || h < nodeMinHashes[nodeId as string]) {
+            nodeMinHashes[nodeId as string] = h;
+          }
+        });
+
+        nodesData.nodes.sort((a, b) => {
+          const ha = nodeMinHashes[a.ID] || BigInt(0);
+          const hb = nodeMinHashes[b.ID] || BigInt(0);
+          return ha < hb ? -1 : 1;
+        });
+
         setCluster(nodesData);
         if (!selectedNodeId && nodesData.nodes.length > 0) {
           setSelectedNodeId(nodesData.nodes[0].ID);
